@@ -3,8 +3,6 @@ using System.IO;
 using System.Text;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
-using System.Collections;
 
 namespace DiskPartition
 
@@ -81,21 +79,11 @@ namespace DiskPartition
             }
         }
 
-        static UInt32 ReturnHeaderSize(byte[] ID3Header)
-        {
-            var nArr = new byte[4];
-            for (byte i = 0; i < 4; i++)
-                nArr[i] = ID3Header[i + 6];
-            var Obj = new Byte28(nArr);
-            return Obj.ReturnHeaderSize();
-        }
-
         public class Tag_Data
         {
             private string name;
             private byte[] flags = new byte[2];
             private byte[] data;
-            Int32 data_index;
             private UInt32 size;
 
             public Tag_Data(string name)
@@ -103,12 +91,14 @@ namespace DiskPartition
                 this.name =name + " doesn't found";
                 size = 0;
             }
-            public Tag_Data(string name, byte[] flags, byte[] size, Int32 data_index)
+            public Tag_Data(string name, byte[] flags, byte[] size, Int32 data_index, ref byte[] data)
             {
                 this.name = name;
                 this.flags = flags;
                 this.size = ToInt32(Fill(size));
-                this.data_index = data_index;
+                this.data = new byte[this.size];
+                for(int i=0;i<this.size;i++)
+                    this.data[i] = data[i + data_index];
             }
 
             private byte[] Fill(byte[] row_HeaderSize)
@@ -169,9 +159,9 @@ namespace DiskPartition
             public string Decrypt()
             {
                 string str = "";
-                for(int i=0;i<size;i++)
+                for(int i=0;i<this.size;i++)
                 {
-                    str+=
+                    str += (char)this.data[i];
                 }
                 return str;
             }
@@ -189,8 +179,9 @@ namespace DiskPartition
         {
             private byte[] cur_header = new byte[10];
             private int cur_num_str = 0;
-            List<Tag_Data> list_name = new List<Tag_Data>();
-            public ID3TAG()
+            private byte[] data;
+            private List<Tag_Data> list_name = new List<Tag_Data>();
+            public ID3TAG(ref byte[] data)
             {
                 string[] Tag_name = {
                 "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
@@ -198,9 +189,10 @@ namespace DiskPartition
                 AddtoList();
                 for (int i = 0; i < this.list_name.Count; i++)
                     this.list_name[i] = new Tag_Data(Tag_name[i]);
+                this.data = data;
             }
 
-            private void Init(int id_str, byte[] header, Int32 data_index)
+            private void Init(int id_str, byte[] header, Int32 data_index,ref byte[] data)
             {
                 string[] Tag_name = {
                 "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
@@ -208,7 +200,7 @@ namespace DiskPartition
 
                 var flag = new byte[2] { header[8], header[9] };
                 var size = new byte[4] { header[4], header[5], header[6], header[7] };
-                this.list_name[id_str] = new Tag_Data(Tag_name[id_str], flag, size, data_index);
+                this.list_name[id_str] = new Tag_Data(Tag_name[id_str], flag, size, data_index,ref data);
             }
             private void AddtoList()
             {
@@ -227,7 +219,7 @@ namespace DiskPartition
                 for (int i = 0; i < 10; i++)
                     this.cur_header[i] = Header[i];
                 this.cur_num_str = (int)Header[10];
-                this.Init(this.cur_num_str, this.cur_header, data_index);
+                this.Init(this.cur_num_str, this.cur_header, data_index,ref this.data);
             } 
             public Int32 ReturnLength (Int32 str_id)
             {
@@ -242,9 +234,62 @@ namespace DiskPartition
                         Console.WriteLine("------------------");
                         Console.WriteLine("Tag name : {0} ;", this.list_name[i].ReturnName());
                         Console.WriteLine("Tag size : {0} ;", this.list_name[i].ReturnHeaderSize());
+                        Console.WriteLine("Tag content : {0} ;", this.list_name[i].Decrypt());
                         Console.WriteLine("------------------");
                     }
                 }
+            }
+        }
+
+        public class ID3Header
+        {
+            private byte[] Header = new byte[10];
+            private Int32 tagSize; 
+
+            public ID3Header(FileStream audio)
+            {
+                audio.Read(this.Header, 0, 10);
+                this.tagSize = (Int32)ReturnHeaderSize();
+            }
+
+            private UInt32 ReturnHeaderSize()
+            {
+                var nArr = new byte[4];
+                for (byte i = 0; i < 4; i++)
+                    nArr[i] = this.Header[i + 6];
+                var Obj = new Byte28(nArr);
+                return Obj.ReturnHeaderSize();
+            }
+
+            private byte RerurnMajorVersion()
+            {
+                return this.Header[3];
+            }
+
+            private byte RerurnMinorVersion()
+            {
+                return this.Header[4];
+            }
+
+            private byte RerurnFlag()
+            {
+                return this.Header[5];
+            }
+
+            public Int32 ReturnTagSize()
+            {
+                return this.tagSize;
+            }
+
+            public void OutputID3HeaderInfo()
+            {
+                Int32 HeaderSize = (int)ReturnHeaderSize();
+                Console.WriteLine("The major version is {0}", this.RerurnMajorVersion());
+                Console.WriteLine("The minor version is {0}", this.RerurnMinorVersion());
+                Console.WriteLine("The flag unsynchronisation is {0} ", (this.RerurnFlag() & 128) == 128);
+                Console.WriteLine("The flag extended header is {0} ", (this.RerurnFlag() & 64) == 64);
+                Console.WriteLine("The flag experimental indicator is {0} ", (this.RerurnFlag() & 32) == 32);
+                Console.WriteLine("The length of tags is {0}", this.tagSize);
             }
         }
 
@@ -345,46 +390,20 @@ namespace DiskPartition
             }
         }
 
-        static byte RerurnMajorVersion(byte[] bArr)
-        {
-            return bArr[3];
-        }
-
-        static byte RerurnMinorVersion(byte[] bArr)
-        {
-            return bArr[4];
-        }
-
-        static byte RerurnFlag(byte[] bArr)
-        {
-            return bArr[5];
-        }
 
         static void Main(string[] args)
 
         {
             using (FileStream audio = new FileStream(@"S:\Bastille.mp3", FileMode.Open))
             {
-                var ID3HeaderArr = new byte[10];
-                audio.Read(ID3HeaderArr, 0, 10);
-
-                Int32 HeaderSize = (int)ReturnHeaderSize(ID3HeaderArr);
-                Console.WriteLine("The major version is {0}", RerurnMajorVersion(ID3HeaderArr));
-                Console.WriteLine("The minoe version is {0}", RerurnMinorVersion(ID3HeaderArr));
-                Console.WriteLine("The flag unsynchronisation is {0} ", (RerurnFlag(ID3HeaderArr) & 128) == 128);
-                Console.WriteLine("The flag extended header is {0} ", (RerurnFlag(ID3HeaderArr) & 64) == 64);
-                Console.WriteLine("The flag experimental indicator is {0} ", (RerurnFlag(ID3HeaderArr) & 32) == 32);
-                Console.WriteLine("The length of tags is {0}", HeaderSize);
-
+                var ID3header = new ID3Header(audio);
                 var Data = new byte[HeaderSize];
-                var D_char = new char[HeaderSize];
+                
                 audio.Read(Data, 0, HeaderSize); //Читает всю инфу
-
-                Decoder Dec = Encoding.UTF8.GetDecoder();
-                Dec.GetChars(Data, 0, HeaderSize, D_char, 0);//Декодирует в символьное
+                
 
                 //Хрень, содержащая все теги (почти)
-                var ID3tag = new ID3TAG();
+                var ID3tag = new ID3TAG(ref Data);
                 var parser = new Parser(ref Data, (Int32)0);
                 while(parser.ReturnCurPos() < (Int32)HeaderSize && parser.ReturnEndTags()==false)
                 {
@@ -398,31 +417,8 @@ namespace DiskPartition
                     if(parser.ReturnEndTags() == false)
                         parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
                 }
-                ID3tag.OutputTags();
-                //----Парсинг----//
-
-                byte status = 0;
-                byte status2 = 0;
-                for (UInt32 i = 0; i < HeaderSize; i++)
-                    if (D_char[i] > 31 && D_char[i] < 127)
-                    {
-                        if (status2 == 0)
-                        {
-                            Console.Write("[{0}] {1}", i, D_char[i]);
-                            status2 = 1;
-                        }
-                        else
-                            Console.Write(D_char[i]);
-                        status = 0;
-                    }
-                    else if (status == 0)
-                    {
-                        Console.WriteLine();
-                        status = 1;
-                        status2 = 0;
-                    }
-                //------------//
-            }  
+                ID3tag.OutputTags();         
+            }
         }
 
     }
@@ -452,4 +448,33 @@ namespace DiskPartition
             "TRDA",    //TRDA Recording dates]
             "TSIZ",    //TSIZ Size]
             "TSSE",    //TSEE Software/Hardware and settings used for encoding]
-            "TYER",    //TYER Year]  */
+            "TYER",    //TYER Year]  
+
+                var D_char = new char[HeaderSize];
+                Decoder Dec = Encoding.UTF8.GetDecoder();
+                Dec.GetChars(Data, 0, HeaderSize, D_char, 0);//Декодирует в символьное
+
+            //----Парсинг----//
+
+                byte status = 0;
+                byte status2 = 0;
+                for (UInt32 i = 0; i < HeaderSize; i++)
+                    if (D_char[i] > 31 && D_char[i] < 127)
+                    {
+                        if (status2 == 0)
+                        {
+                            Console.Write("[{0}] {1}", i, D_char[i]);
+                            status2 = 1;
+                        }
+                        else
+                            Console.Write(D_char[i]);
+                        status = 0;
+                    }
+                    else if (status == 0)
+                    {
+                        Console.WriteLine();
+                        status = 1;
+                        status2 = 0;
+                    }
+                //------------//
+     */

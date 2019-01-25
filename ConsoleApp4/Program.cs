@@ -84,6 +84,7 @@ namespace DiskPartition
             private string name;
             private byte[] flags = new byte[2];
             private byte[] data;
+            private Int32 data_index;
             private UInt32 size;
 
             public Tag_Data(string name)
@@ -97,7 +98,8 @@ namespace DiskPartition
                 this.flags = flags;
                 this.size = ToInt32(Fill(size));
                 this.data = new byte[this.size];
-                for(int i=0;i<this.size;i++)
+                this.data_index = data_index;
+                for (int i=0;i<this.size;i++)
                     this.data[i] = data[i + data_index];
             }
 
@@ -173,6 +175,10 @@ namespace DiskPartition
             {
                 return size;
             }
+            public Int32 ReturnIndex()
+            {
+                return this.data_index;
+            }
         }
 
         public class ID3TAG
@@ -180,7 +186,9 @@ namespace DiskPartition
             private byte[] cur_header = new byte[10];
             private int cur_num_str = 0;
             private byte[] data;
+            private Int32 index_free_bytes;
             private List<Tag_Data> list_name = new List<Tag_Data>();
+
             public ID3TAG(FileStream audio,Int32 size)
             {
                 string[] Tag_name = {
@@ -230,9 +238,17 @@ namespace DiskPartition
             {
                 return ref this.data;
             }
+            public Int32 ReturnCountFreeBytes()
+            {
+                return this.data.Length-this.index_free_bytes;
+            }
+            public void SetIndexFreeBytes(Int32 last_index)
+            {
+                this.index_free_bytes = last_index;
+            }
             public void OutputTags()
             {
-                for(Int32 i=0;i<this.list_name.Count();i++)
+                for (Int32 i = 0; i < this.list_name.Count(); i++)
                 {
                     if (this.list_name[i].ReturnHeaderSize() > 0)
                     {
@@ -240,6 +256,7 @@ namespace DiskPartition
                         Console.WriteLine("Tag name : {0} ;", this.list_name[i].ReturnName());
                         Console.WriteLine("Tag size : {0} ;", this.list_name[i].ReturnHeaderSize());
                         Console.WriteLine("Tag content : {0} ;", this.list_name[i].Decrypt());
+                        Console.WriteLine("Tag data first index : {0} ;", this.list_name[i].ReturnIndex());
                         Console.WriteLine("------------------");
                     }
                 }
@@ -254,10 +271,10 @@ namespace DiskPartition
             public ID3Header(FileStream audio)
             {
                 audio.Read(this.Header, 0, 10);
-                this.tagSize = (Int32)ReturnHeaderSize();
+                this.tagSize = (Int32)UnpackTagSize();
             }
 
-            private UInt32 ReturnHeaderSize()
+            private UInt32 UnpackTagSize()
             {
                 var nArr = new byte[4];
                 for (byte i = 0; i < 4; i++)
@@ -288,13 +305,14 @@ namespace DiskPartition
 
             public void OutputID3HeaderInfo()
             {
-                Int32 HeaderSize = (int)ReturnHeaderSize();
+                Console.WriteLine("-------------ID3Header Info--------------");
                 Console.WriteLine("The major version is {0}", this.RerurnMajorVersion());
                 Console.WriteLine("The minor version is {0}", this.RerurnMinorVersion());
                 Console.WriteLine("The flag unsynchronisation is {0} ", (this.RerurnFlag() & 128) == 128);
                 Console.WriteLine("The flag extended header is {0} ", (this.RerurnFlag() & 64) == 64);
                 Console.WriteLine("The flag experimental indicator is {0} ", (this.RerurnFlag() & 32) == 32);
                 Console.WriteLine("The length of tags is {0}", this.tagSize);
+                Console.WriteLine("-----------------------------------------");
             }
         }
 
@@ -399,7 +417,7 @@ namespace DiskPartition
         static void Main(string[] args)
 
         {
-            using (FileStream audio = new FileStream(@"S:\Bastille.mp3", FileMode.Open))
+            using (FileStream audio = new FileStream(@"S:\Ask.mp3", FileMode.Open))
             {
                 var ID3header = new ID3Header(audio);
                 var ID3tag = new ID3TAG(audio,ID3header.ReturnTagSize());
@@ -413,11 +431,14 @@ namespace DiskPartition
                     }
                     catch(NullReferenceException)
                     {
+                        ID3tag.SetIndexFreeBytes(parser.ReturnCurPos());
                     }
                     if(parser.ReturnEndTags() == false)
                         parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
                 }
-                ID3tag.OutputTags();         
+                ID3header.OutputID3HeaderInfo();
+                ID3tag.OutputTags();
+                Console.WriteLine("Count of free bytes is {0}", ID3tag.ReturnCountFreeBytes());
             }
         }
 

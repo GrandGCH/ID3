@@ -94,6 +94,8 @@ namespace DiskPartition
         {
             private string name;
             private byte[] flags = new byte[2];
+            private byte[] data;
+            Int32 data_index;
             private UInt32 size;
 
             public Tag_Data(string name)
@@ -101,11 +103,12 @@ namespace DiskPartition
                 this.name =name + " doesn't found";
                 size = 0;
             }
-            public Tag_Data(string name, byte[] flags, byte[] size)
+            public Tag_Data(string name, byte[] flags, byte[] size, Int32 data_index)
             {
                 this.name = name;
                 this.flags = flags;
                 this.size = ToInt32(Fill(size));
+                this.data_index = data_index;
             }
 
             private byte[] Fill(byte[] row_HeaderSize)
@@ -163,6 +166,19 @@ namespace DiskPartition
                 }
                 return value;
             }
+            public string Decrypt()
+            {
+                string str = "";
+                for(int i=0;i<size;i++)
+                {
+                    str+=
+                }
+                return str;
+            }
+            public string ReturnName()
+            {
+                return name;
+            }
             public UInt32 ReturnHeaderSize()
             {
                 return size;
@@ -178,46 +194,58 @@ namespace DiskPartition
             {
                 string[] Tag_name = {
                 "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
-                "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON" };
+                "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON","TCOM","COMM" };
                 AddtoList();
                 for (int i = 0; i < this.list_name.Count; i++)
                     this.list_name[i] = new Tag_Data(Tag_name[i]);
             }
 
-            private void Init(int id_str, byte[] header)
+            private void Init(int id_str, byte[] header, Int32 data_index)
             {
                 string[] Tag_name = {
                 "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
-                "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON" };
+                "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON","TCOM","COMM" };
 
                 var flag = new byte[2] { header[8], header[9] };
                 var size = new byte[4] { header[4], header[5], header[6], header[7] };
-                this.list_name[id_str] = new Tag_Data(Tag_name[id_str], flag, size);
+                this.list_name[id_str] = new Tag_Data(Tag_name[id_str], flag, size, data_index);
             }
             private void AddtoList()
             {
                 Tag_Data TALB = null, TBPM = null, TCOM = null, TDAT = null, TEXT = null, TIME = null, TIT1 = null, TIT2 = null, TIT3 = null, TLEN = null, TOAL = null, TOLY = null, TOPE = null,
-                TORY = null, TPE1 = null, TPE2= null, TPE3 = null, TPE4 = null, TPOS = null, TPUB = null, TRCK = null, TRDA = null, TSIZ = null, TSSE=null, TYER =null, TCON = null;
+                TORY = null, TPE1 = null, TPE2= null, TPE3 = null, TPE4 = null, TPOS = null, TPUB = null, TRCK = null, TRDA = null, TSIZ = null, TSSE=null, TYER =null, TCON = null, COMM = null;
                 this.list_name.Add(TALB); this.list_name.Add(TBPM); this.list_name.Add(TCOM); this.list_name.Add(TDAT);
                 this.list_name.Add(TEXT); this.list_name.Add(TIME); this.list_name.Add(TIT1); this.list_name.Add(TIT2);
                 this.list_name.Add(TIT3); this.list_name.Add(TLEN); this.list_name.Add(TOAL); this.list_name.Add(TOLY);
                 this.list_name.Add(TOPE); this.list_name.Add(TORY); this.list_name.Add(TPE1); this.list_name.Add(TPE2);
                 this.list_name.Add(TPE3); this.list_name.Add(TPE4); this.list_name.Add(TPOS); this.list_name.Add(TPUB);
                 this.list_name.Add(TRCK); this.list_name.Add(TRDA); this.list_name.Add(TSIZ); this.list_name.Add(TSSE);
-                this.list_name.Add(TYER); this.list_name.Add(TCON);
+                this.list_name.Add(TYER); this.list_name.Add(TCON); this.list_name.Add(TCOM); this.list_name.Add(COMM); 
             }
-            public void Unpack(byte[] Header)
+            public void Unpack(byte[] Header,Int32 data_index)
             {
                 for (int i = 0; i < 10; i++)
                     this.cur_header[i] = Header[i];
                 this.cur_num_str = (int)Header[10];
-                this.Init(this.cur_num_str, this.cur_header);
+                this.Init(this.cur_num_str, this.cur_header, data_index);
             } 
             public Int32 ReturnLength (Int32 str_id)
             {
                 return (Int32)this.list_name[str_id].ReturnHeaderSize();
             }
-
+            public void OutputTags()
+            {
+                for(Int32 i=0;i<this.list_name.Count();i++)
+                {
+                    if (this.list_name[i].ReturnHeaderSize() > 0)
+                    {
+                        Console.WriteLine("------------------");
+                        Console.WriteLine("Tag name : {0} ;", this.list_name[i].ReturnName());
+                        Console.WriteLine("Tag size : {0} ;", this.list_name[i].ReturnHeaderSize());
+                        Console.WriteLine("------------------");
+                    }
+                }
+            }
         }
 
         public class Parser
@@ -226,10 +254,11 @@ namespace DiskPartition
             Int32 size;
             Int32 curPos;
             Int32 curStr;
+            bool endTags = false;
             byte[] ID3Data;
             private string[] Tag_name = {
             "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
-            "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON" };
+            "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON","TCOM","COMM" };
 
             public Parser(ref byte[] ID3Data, Int32 curPos)
             {
@@ -238,7 +267,7 @@ namespace DiskPartition
                 this.curPos = curPos;
             }
 
-            private byte[] Template() //Шаблон, возвращает заголовок в 10 байтах и номер строки в 11-м
+            private byte[] Filter() //Шаблон, возвращает заголовок в 10 байтах и номер строки в 11-м
 
             {
                 byte step = 0;
@@ -251,7 +280,7 @@ namespace DiskPartition
                     if (step == 4)
                     {
                         int j;
-                        for (j = 0; j < this.Tag_name.Length-1 && str.Contains(this.Tag_name[j]) == false;)
+                        for (j = 0; j < this.Tag_name.Length - 1 && str.Contains(this.Tag_name[j]) == false;)
                             j++;
                         if (str.Contains(this.Tag_name[j]) == true)
                         {
@@ -267,7 +296,7 @@ namespace DiskPartition
                         status = 0;
                         step = 0;
                     }
-                    else if ((this.ID3Data[i] > 64 && this.ID3Data[i] < 91) || (this.ID3Data[i] > 48 && this.ID3Data[i] < 58) )
+                    else if ((this.ID3Data[i] > 64 && this.ID3Data[i] < 91) || (this.ID3Data[i] > 48 && this.ID3Data[i] < 58))
                     {
                         if ((this.ID3Data[i] > 48 && this.ID3Data[i] < 58 && status == 0) && (status == 1 || status == 2))
                         {
@@ -282,11 +311,8 @@ namespace DiskPartition
                             status++;
                         }
                     }
-                    else if(step>0)
-                    {
-                        step = 0;
-                        str = "";
-                    }
+                    else
+                        endTags = true;
                 }
                 return null;
             }
@@ -299,7 +325,7 @@ namespace DiskPartition
             }
             public byte[] Result()
             {
-                return Template();
+                return Filter();
             }
             public Int32 ReturnCurPos()
             {
@@ -312,6 +338,10 @@ namespace DiskPartition
             public Int32 ReturnCurStr()
             {
                 return this.curStr;
+            }
+            public bool ReturnEndTags()
+            {
+                return this.endTags;
             }
         }
 
@@ -356,12 +386,19 @@ namespace DiskPartition
                 //Хрень, содержащая все теги (почти)
                 var ID3tag = new ID3TAG();
                 var parser = new Parser(ref Data, (Int32)0);
-                while(parser.ReturnCurPos() < (Int32)HeaderSize)
+                while(parser.ReturnCurPos() < (Int32)HeaderSize && parser.ReturnEndTags()==false)
                 {
-                    ID3tag.Unpack(parser.Result());
-                    parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
+                    try
+                    {
+                        ID3tag.Unpack(parser.Result(),parser.ReturnCurPos()+10);
+                    }
+                    catch(NullReferenceException)
+                    {
+                    }
+                    if(parser.ReturnEndTags() == false)
+                        parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
                 }
-
+                ID3tag.OutputTags();
                 //----Парсинг----//
 
                 byte status = 0;
@@ -385,13 +422,13 @@ namespace DiskPartition
                         status2 = 0;
                     }
                 //------------//
-            }
+            }  
         }
 
     }
 
 }
-/*"TALB",    //TALB Album/Movie/Show title]    
+/*            TALB Album/Movie/Show title]    
             "TBPM",    //TBPM BPM (beats per minute)]
             "TCOM",    //TCOM Composer]
             "TDAT",    //TDAT Date] 

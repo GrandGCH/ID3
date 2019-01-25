@@ -181,7 +181,7 @@ namespace DiskPartition
             private int cur_num_str = 0;
             private byte[] data;
             private List<Tag_Data> list_name = new List<Tag_Data>();
-            public ID3TAG(ref byte[] data)
+            public ID3TAG(FileStream audio,Int32 size)
             {
                 string[] Tag_name = {
                 "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
@@ -189,7 +189,8 @@ namespace DiskPartition
                 AddtoList();
                 for (int i = 0; i < this.list_name.Count; i++)
                     this.list_name[i] = new Tag_Data(Tag_name[i]);
-                this.data = data;
+                this.data = new byte[size];
+                audio.Read(this.data, 0, size);
             }
 
             private void Init(int id_str, byte[] header, Int32 data_index,ref byte[] data)
@@ -224,6 +225,10 @@ namespace DiskPartition
             public Int32 ReturnLength (Int32 str_id)
             {
                 return (Int32)this.list_name[str_id].ReturnHeaderSize();
+            }
+            public ref byte[] ReturnData()
+            {
+                return ref this.data;
             }
             public void OutputTags()
             {
@@ -397,15 +402,10 @@ namespace DiskPartition
             using (FileStream audio = new FileStream(@"S:\Bastille.mp3", FileMode.Open))
             {
                 var ID3header = new ID3Header(audio);
-                var Data = new byte[HeaderSize];
-                
-                audio.Read(Data, 0, HeaderSize); //Читает всю инфу
-                
+                var ID3tag = new ID3TAG(audio,ID3header.ReturnTagSize());
+                var parser = new Parser(ref ID3tag.ReturnData(), (Int32)0);
 
-                //Хрень, содержащая все теги (почти)
-                var ID3tag = new ID3TAG(ref Data);
-                var parser = new Parser(ref Data, (Int32)0);
-                while(parser.ReturnCurPos() < (Int32)HeaderSize && parser.ReturnEndTags()==false)
+                while(parser.ReturnCurPos() < ID3header.ReturnTagSize() && parser.ReturnEndTags()==false)
                 {
                     try
                     {
@@ -449,32 +449,4 @@ namespace DiskPartition
             "TSIZ",    //TSIZ Size]
             "TSSE",    //TSEE Software/Hardware and settings used for encoding]
             "TYER",    //TYER Year]  
-
-                var D_char = new char[HeaderSize];
-                Decoder Dec = Encoding.UTF8.GetDecoder();
-                Dec.GetChars(Data, 0, HeaderSize, D_char, 0);//Декодирует в символьное
-
-            //----Парсинг----//
-
-                byte status = 0;
-                byte status2 = 0;
-                for (UInt32 i = 0; i < HeaderSize; i++)
-                    if (D_char[i] > 31 && D_char[i] < 127)
-                    {
-                        if (status2 == 0)
-                        {
-                            Console.Write("[{0}] {1}", i, D_char[i]);
-                            status2 = 1;
-                        }
-                        else
-                            Console.Write(D_char[i]);
-                        status = 0;
-                    }
-                    else if (status == 0)
-                    {
-                        Console.WriteLine();
-                        status = 1;
-                        status2 = 0;
-                    }
-                //------------//
-     */
+*/

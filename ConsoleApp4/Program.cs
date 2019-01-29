@@ -363,7 +363,7 @@ namespace DiskPartition
                 this.tagSize = size;
                 Byte28 new_size = new Byte28(size);
                 byte[] new_size_arr=new_size.PacktoArr();
-                audio.Seek(6, 0);
+                audio.Seek(5, 0);
                 audio.Write(new_size_arr, 0, 4);
             }
         }
@@ -475,76 +475,87 @@ namespace DiskPartition
                 var size = audio.Length;
                 var size_data = size - 10 - tagSize;
                 var new_size = 4096 - tagSize + size;
-                var new_old_size_diff = new_size - size;
-                var mb_size = 1024 * 1024;
-                var src_data = new byte[mb_size];
-                var dest_data = new byte[mb_size];
+                Int32 df_size = (Int32)(new_size - size);
+                var src_data = new byte[df_size];
+                var dest_data = new byte[df_size];
 
                 audio.SetLength(new_size);
                 audio.Seek(10 + tagSize, 0);
 
                 Int64 foll_size = size_data;
                 Int64 pos;
+                bool discard = false;
 
-                while (foll_size < mb_size * 2)
-                    mb_size /= 2;
-
-                audio.Read(src_data, 0, mb_size);
+                audio.Read(src_data, 0, df_size);
                 while (foll_size > 0)
                 {
-                    if (foll_size >= mb_size * 2)
+                    if (foll_size >= df_size * 2 && discard == false)
                     {
+
                         pos = audio.Position;
-                        audio.Read(dest_data, 0, mb_size);
+                        audio.Read(dest_data, 0, df_size);
                         audio.Seek(pos, 0);
-                        audio.Write(src_data, 0, mb_size);
-                        src_data = dest_data;
-                        foll_size -= mb_size;
+                        audio.Write(src_data, 0, df_size);
+                        dest_data.CopyTo(src_data, 0);
+                        discard = true;
+                        foll_size -= df_size;
+                    }
+                    else if (foll_size >= df_size * 2)
+                        discard = false;
+
+                    else if (discard == true && foll_size != 1)
+                    {
+                        audio.Write(src_data, 0, df_size);
+                        discard = false;
+                        audio.Read(src_data, 0, df_size);
                     }
                     else if (foll_size == 1)
                     {
-                        audio.Write(src_data, 0, mb_size);
+                        audio.Write(src_data, 0, 1);
                         foll_size--;
                     }
-                    else
-                        mb_size /= 2;
                 }
 
-                audio.Seek(10+tagSize, 0);
-                for (Int64 i = 0; i < new_old_size_diff; i++)
-                {
+                audio.Seek(10+tagSize-1, 0);
+                for (Int64 i = 0; i < df_size; i++)
                     audio.WriteByte(0);
-                }
             }
-
+            
             using (FileStream audio = new FileStream(@"S:\FULL.mp3", FileMode.Open))
             {
                 var ID3header = new ID3Header(audio);
-                var ID3tag = new ID3TAG(audio,ID3header.ReturnTagSize());
+                var ID3tag = new ID3TAG(audio, ID3header.ReturnTagSize());
                 var parser = new Parser(ref ID3tag.ReturnData(), (Int32)0);
 
-                while(parser.ReturnCurPos() < ID3header.ReturnTagSize() && parser.ReturnEndTags()==false)
+                while (parser.ReturnCurPos() < ID3header.ReturnTagSize() && parser.ReturnEndTags() == false)
                 {
                     try
                     {
-                        ID3tag.Unpack(parser.Result(),parser.ReturnCurPos()+10);
+                        ID3tag.Unpack(parser.Result(), parser.ReturnCurPos() + 10);
                     }
-                    catch(NullReferenceException)
+                    catch (NullReferenceException)
                     {
                         ID3tag.SetIndexFreeBytes(parser.ReturnCurPos());
                     }
-                    if(parser.ReturnEndTags() == false)
+                    if (parser.ReturnEndTags() == false)
                         parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
                 }
                 ID3header.OutputID3HeaderInfo();
                 //ID3tag.OutputTags();
                 Console.WriteLine("Count of free bytes is {0}", ID3tag.ReturnCountFreeBytes());
 
+                audio.Seek(10 + ID3header.ReturnTagSize() -1 , 0);
+                Console.WriteLine("{0} {1} {2}",audio.ReadByte(), audio.ReadByte(), audio.ReadByte());
                 if (ID3header.ReturnTagSize() < 4096)
                 {
                     IncreaseFileSize(audio, ID3header.ReturnTagSize());
-                    ID3header.SetHeaderSize(audio, 4096);
+                    //ID3header.SetHeaderSize(audio, 4096);
                 }
+                audio.Seek(10 + ID3header.ReturnTagSize() - 1 +4096, 0);
+                Console.WriteLine("{0} {1} {2}", audio.ReadByte(), audio.ReadByte(), audio.ReadByte());
+
+                ID3header.OutputID3HeaderInfo();
+                Console.WriteLine("Count of free bytes is {0}", ID3tag.ReturnCountFreeBytes());
             }
         }
 

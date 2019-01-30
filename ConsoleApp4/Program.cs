@@ -234,15 +234,19 @@ namespace DiskPartition
             private byte[] data;
             private Int32 index_free_bytes;
             private List<Tag_Data> list_name = new List<Tag_Data>();
+            string[] Tag_name = {
+                "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
+                "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON",
+                "TCOM","COMM","AENC","APIC","COMR","ENCR","EQUA","ETCO","GEOB","GRID","IPLS","LINK","MCDI",
+                "MLLT","OWNE","PRIV","PCNT","POPM","POSS","RBUF","RVAD","RVRB","SYLT","SYTC","TCOP",
+                "TENC","TFLT","TKEY","TLAN","TMED","TOFN","TOWN","TRSN","TRSO","TSRC","TXXX","UFID",
+                "USER","USLT","WCOM","WCOP","WOAF","WOAR","WOAS","WORS","WPAY","WPUB","WXXX"};
 
             public ID3TAG(FileStream audio,Int32 size)
             {
-                string[] Tag_name = {
-                "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
-                "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON","TCOM","COMM" };
                 AddtoList();
                 for (int i = 0; i < this.list_name.Count; i++)
-                    this.list_name[i] = new Tag_Data(Tag_name[i]);
+                    this.list_name[i] = new Tag_Data(this.Tag_name[i]);
                 this.data = new byte[size];
                 audio.Seek(10, 0);
                 audio.Read(this.data, 0, size);
@@ -250,25 +254,40 @@ namespace DiskPartition
 
             private void Init(int id_str, byte[] header, Int32 data_index,ref byte[] data)
             {
-                string[] Tag_name = {
-                "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
-                "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON","TCOM","COMM" };
-
                 var flag = new byte[2] { header[8], header[9] };
                 var size = new byte[4] { header[4], header[5], header[6], header[7] };
-                this.list_name[id_str] = new Tag_Data(Tag_name[id_str], flag, size, data_index,ref data);
+                this.list_name[id_str] = new Tag_Data(this.Tag_name[id_str], flag, size, data_index,ref data);
             }
             private void AddtoList()
             {
                 Tag_Data TALB = null, TBPM = null, TCOM = null, TDAT = null, TEXT = null, TIME = null, TIT1 = null, TIT2 = null, TIT3 = null, TLEN = null, TOAL = null, TOLY = null, TOPE = null,
-                TORY = null, TPE1 = null, TPE2= null, TPE3 = null, TPE4 = null, TPOS = null, TPUB = null, TRCK = null, TRDA = null, TSIZ = null, TSSE=null, TYER =null, TCON = null, COMM = null;
+                TORY = null, TPE1 = null, TPE2 = null, TPE3 = null, TPE4 = null, TPOS = null, TPUB = null, TRCK = null, TRDA = null, TSIZ = null, TSSE = null, TYER = null, TCON = null, COMM = null,
+                AENC = null, APIC = null, COMR = null, ENCR = null, EQUA = null, ETCO = null, GEOB = null, GRID = null, IPLS = null, LINK = null, MCDI = null, MLLT = null, OWNE = null, PRIV = null,
+                PCNT = null, POPM = null, POSS = null, RBUF = null, RVAD = null, RVRB = null, SYLT = null, SYTC = null, TCOP = null, TENC = null, TFLT = null, TKEY = null, TLAN = null, TMED = null,
+                TOFN = null, TOWN = null, TRSN = null, TRSO = null, TSRC = null, TXXX = null, UFID = null, USER = null, USLT = null, WCOM = null, WCOP = null, WOAF = null, WOAR = null, WOAS = null,
+                WORS = null, WPAY = null, WPUB = null, WXXX = null;
+
                 this.list_name.Add(TALB); this.list_name.Add(TBPM); this.list_name.Add(TCOM); this.list_name.Add(TDAT);
                 this.list_name.Add(TEXT); this.list_name.Add(TIME); this.list_name.Add(TIT1); this.list_name.Add(TIT2);
                 this.list_name.Add(TIT3); this.list_name.Add(TLEN); this.list_name.Add(TOAL); this.list_name.Add(TOLY);
                 this.list_name.Add(TOPE); this.list_name.Add(TORY); this.list_name.Add(TPE1); this.list_name.Add(TPE2);
                 this.list_name.Add(TPE3); this.list_name.Add(TPE4); this.list_name.Add(TPOS); this.list_name.Add(TPUB);
                 this.list_name.Add(TRCK); this.list_name.Add(TRDA); this.list_name.Add(TSIZ); this.list_name.Add(TSSE);
-                this.list_name.Add(TYER); this.list_name.Add(TCON); this.list_name.Add(TCOM); this.list_name.Add(COMM); 
+                this.list_name.Add(TYER); this.list_name.Add(TCON); this.list_name.Add(TCOM); this.list_name.Add(COMM);
+
+                this.list_name.Add(AENC); this.list_name.Add(APIC); this.list_name.Add(COMR); this.list_name.Add(ENCR);
+                this.list_name.Add(EQUA); this.list_name.Add(ETCO); this.list_name.Add(GEOB); this.list_name.Add(GRID);
+                this.list_name.Add(IPLS); this.list_name.Add(LINK); this.list_name.Add(MCDI); this.list_name.Add(MLLT);
+                this.list_name.Add(OWNE); this.list_name.Add(PRIV); this.list_name.Add(PCNT); this.list_name.Add(POPM);
+                this.list_name.Add(POSS); this.list_name.Add(RBUF); this.list_name.Add(RVAD); this.list_name.Add(RVRB);
+                this.list_name.Add(SYLT); this.list_name.Add(SYTC); this.list_name.Add(TCOP); this.list_name.Add(TENC);
+                this.list_name.Add(TFLT); this.list_name.Add(TKEY); this.list_name.Add(TLAN); this.list_name.Add(TMED);
+
+                this.list_name.Add(TOFN); this.list_name.Add(TOWN); this.list_name.Add(TRSN); this.list_name.Add(TRSO);
+                this.list_name.Add(TSRC); this.list_name.Add(TXXX); this.list_name.Add(UFID); this.list_name.Add(USER);
+                this.list_name.Add(USLT); this.list_name.Add(WCOM); this.list_name.Add(WCOP); this.list_name.Add(WOAF);
+                this.list_name.Add(WOAR); this.list_name.Add(WOAS); this.list_name.Add(WORS); this.list_name.Add(WPAY);
+                this.list_name.Add(WPUB); this.list_name.Add(WXXX); 
             }
             public void Unpack(byte[] Header,Int32 data_index)
             {
@@ -375,9 +394,13 @@ namespace DiskPartition
             Int32 curStr;
             bool endTags = false;
             byte[] ID3Data;
-            private string[] Tag_name = {
-            "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
-            "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON","TCOM","COMM" };
+            string[] Tag_name = {
+                "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
+                "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON",
+                "TCOM","COMM","AENC","APIC","COMR","ENCR","EQUA","ETCO","GEOB","GRID","IPLS","LINK","MCDI",
+                "MLLT","OWNE","PRIV","PCNT","POPM","POSS","RBUF","RVAD","RVRB","SYLT","SYTC","TCOP",
+                "TENC","TFLT","TKEY","TLAN","TMED","TOFN","TOWN","TRSN","TRSO","TSRC","TXXX","UFID",
+                "USER","USLT","WCOM","WCOP","WOAF","WOAR","WOAS","WORS","WPAY","WPUB","WXXX"};
 
             public Parser(ref byte[] ID3Data, Int32 curPos)
             {
@@ -500,7 +523,7 @@ namespace DiskPartition
                 audio.Write(dest_data, 0, size_remain);
             }
             
-            using (FileStream audio = new FileStream(@"S:\FULL.mp3", FileMode.Open))
+            using (FileStream audio = new FileStream(@"S:\ASK.mp3", FileMode.Open))
             {
                 var ID3header = new ID3Header(audio);
                 var ID3tag = new ID3TAG(audio, ID3header.ReturnTagSize());

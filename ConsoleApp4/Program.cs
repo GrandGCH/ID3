@@ -304,23 +304,25 @@ namespace DiskPartition
             {
                 return ref this.data;
             }
-            public Int32 ReturnCountFreeBytes()
-            {
-                return this.data.Length-this.index_free_bytes;
-            }
             public void SetIndexFreeBytes(Int32 last_index)
             {
                 this.index_free_bytes = last_index;
             }
-            /*public void OutputTags()
+            public void OutputTags()
             {
                for(Int32 i = 0;i<list_name.Count;i++)
                 {
-                    Console.WriteLine("-----------------");
-                    Console.WriteLine("-----------------");
-                    Console.WriteLine("-----------------");
+                    if (this.list_name[i].ReturnHeaderSize() > 0)
+                    {
+                        Console.WriteLine("-----------------");
+                        Console.WriteLine("Tag name: {0}", this.list_name[i].ReturnName());
+                        Console.WriteLine("Tag contains: {0}", this.list_name[i].Decrypt());
+                        Console.WriteLine("Tag begin position: {0}", this.list_name[i].ReturnIndex());
+                        Console.WriteLine("Tag size: {0}", this.list_name[i].ReturnHeaderSize());
+                        Console.WriteLine("-----------------");
+                    }
                 }
-            }*/
+            }
         }
 
         public class ID3Header
@@ -523,7 +525,7 @@ namespace DiskPartition
                 audio.Write(dest_data, 0, size_remain);
             }
             
-            using (FileStream audio = new FileStream(@"S:\ASK.mp3", FileMode.Open))
+            using (FileStream audio = new FileStream(@"S:\B.mp3", FileMode.Open))
             {
                 var ID3header = new ID3Header(audio);
                 var ID3tag = new ID3TAG(audio, ID3header.ReturnTagSize());
@@ -542,23 +544,16 @@ namespace DiskPartition
                     if (parser.ReturnEndTags() == false)
                         parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
                 }
-                ID3header.OutputID3HeaderInfo();
-                //ID3tag.OutputTags();
-                //Console.WriteLine("Count of free bytes is {0}", ID3tag.ReturnCountFreeBytes());
 
-                audio.Seek(10 + ID3header.ReturnTagSize() -1 , 0);
-                Console.WriteLine("{0} {1} {2}",audio.ReadByte(), audio.ReadByte(), audio.ReadByte());
+                ID3header.OutputID3HeaderInfo();
+                ID3tag.OutputTags();
                 if (ID3header.ReturnTagSize() < 4096)
                 {
                     IncreaseFileSize(audio, ID3header.ReturnTagSize());
                     ID3header.SetHeaderSize(audio, 4096);
                     ID3header = new ID3Header(audio);
+                    ID3header.OutputID3HeaderInfo();
                 }
-                audio.Seek(10 + ID3header.ReturnTagSize() - 1 +4096, 0);
-                Console.WriteLine("{0} {1} {2}", audio.ReadByte(), audio.ReadByte(), audio.ReadByte());
- 
-                ID3header.OutputID3HeaderInfo();
-                //Console.WriteLine("Count of free bytes is {0}", ID3tag.ReturnCountFreeBytes());
             }
         }
 

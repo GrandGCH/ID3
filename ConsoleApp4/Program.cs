@@ -90,39 +90,36 @@ namespace DiskPartition
             {
                 byte[] nArr = new byte[4];
                 byte mask = 127;
-                UInt32 size = this.size;
-                for(sbyte i=3;i>=0;i--)
+                for(sbyte i=(sbyte)count;i<4;i++)
                 {
-                    nArr[i] = (byte)(size >> 7*i & mask);
+                    nArr[i] = (byte)(this.size >> 7*(i-1) & mask);
                 }
                 return nArr;
             }
        
-
             public byte[] PacktoArr()
             {
                 byte[] nArr=null ;
-                long max = 268435455;
-                if (this.size >= max >> 21)
+                if (this.size < 1 << 21)
                 {
-                    if (this.size >= max >> 14)
+                    if (this.size < 1 << 14)
                     {
-                        if (this.size >= max >> 7)
+                        if (this.size < 1 << 7)
                         {
-                            nArr = ConverttoArr(4);
+                            nArr = new byte[4]{ 0,0,0,(byte)this.size};
                         }
                         else
                         {
-                            nArr = ConverttoArr(3);
+                            nArr = ConverttoArr(2); ;
                         }
                     }
                     else
                     {
-                        nArr = nArr = ConverttoArr(2); ;
+                        nArr =  ConverttoArr(3); ;
                     }
                 }
                 else
-                    nArr = new byte[4] { 0, 0, 0, (byte)this.size };
+                    nArr = nArr = ConverttoArr(4);
                 return nArr;
             }
 
@@ -247,6 +244,7 @@ namespace DiskPartition
                 for (int i = 0; i < this.list_name.Count; i++)
                     this.list_name[i] = new Tag_Data(Tag_name[i]);
                 this.data = new byte[size];
+                audio.Seek(10, 0);
                 audio.Read(this.data, 0, size);
             }
 
@@ -313,6 +311,7 @@ namespace DiskPartition
 
             public ID3Header(FileStream audio)
             {
+                audio.Seek(0, 0);
                 audio.Read(this.Header, 0, 10);
                 this.tagSize = (Int32)UnpackTagSize();
             }
@@ -360,10 +359,10 @@ namespace DiskPartition
 
             public void SetHeaderSize(FileStream audio, Int32 size)
             {
-                this.tagSize = size;
+                //this.tagSize = size;
                 Byte28 new_size = new Byte28(size);
                 byte[] new_size_arr=new_size.PacktoArr();
-                audio.Seek(5, 0);
+                audio.Seek(6, 0);
                 audio.Write(new_size_arr, 0, 4);
             }
         }
@@ -478,47 +477,27 @@ namespace DiskPartition
                 Int32 df_size = (Int32)(new_size - size);
                 var src_data = new byte[df_size];
                 var dest_data = new byte[df_size];
+                var null_data = new byte[df_size];
 
-                audio.SetLength(new_size);
-                audio.Seek(10 + tagSize, 0);
-
-                Int64 foll_size = size_data;
-                Int64 pos;
-                bool discard = false;
-
+                Int64 pos = 10 + tagSize;
+                audio.Seek(pos, 0);
                 audio.Read(src_data, 0, df_size);
-                while (foll_size > 0)
-                {
-                    if (foll_size >= df_size * 2 && discard == false)
-                    {
-
-                        pos = audio.Position;
-                        audio.Read(dest_data, 0, df_size);
-                        audio.Seek(pos, 0);
-                        audio.Write(src_data, 0, df_size);
-                        dest_data.CopyTo(src_data, 0);
-                        discard = true;
-                        foll_size -= df_size;
-                    }
-                    else if (foll_size >= df_size * 2)
-                        discard = false;
-
-                    else if (discard == true && foll_size != 1)
-                    {
-                        audio.Write(src_data, 0, df_size);
-                        discard = false;
-                        audio.Read(src_data, 0, df_size);
-                    }
-                    else if (foll_size == 1)
-                    {
-                        audio.Write(src_data, 0, 1);
-                        foll_size--;
-                    }
+                audio.Seek(pos, 0);
+                audio.Write(null_data, 0, df_size);
+                while (audio.Position < size-df_size  )
+                {    
+                    pos = audio.Position;
+                    audio.Read(dest_data, 0, df_size);
+                    audio.Seek(pos, 0);
+                    audio.Write(src_data, 0, df_size);
+                    dest_data.CopyTo(src_data, 0);
                 }
-
-                audio.Seek(10+tagSize-1, 0);
-                for (Int64 i = 0; i < df_size; i++)
-                    audio.WriteByte(0);
+                Int32 size_remain = (Int32)(audio.Length - audio.Position);
+                pos = audio.Position;
+                audio.Read(dest_data, 0, size_remain);
+                audio.Seek(pos, 0);
+                audio.Write(src_data, 0, df_size);
+                audio.Write(dest_data, 0, size_remain);
             }
             
             using (FileStream audio = new FileStream(@"S:\FULL.mp3", FileMode.Open))
@@ -542,20 +521,21 @@ namespace DiskPartition
                 }
                 ID3header.OutputID3HeaderInfo();
                 //ID3tag.OutputTags();
-                Console.WriteLine("Count of free bytes is {0}", ID3tag.ReturnCountFreeBytes());
+                //Console.WriteLine("Count of free bytes is {0}", ID3tag.ReturnCountFreeBytes());
 
                 audio.Seek(10 + ID3header.ReturnTagSize() -1 , 0);
                 Console.WriteLine("{0} {1} {2}",audio.ReadByte(), audio.ReadByte(), audio.ReadByte());
                 if (ID3header.ReturnTagSize() < 4096)
                 {
                     IncreaseFileSize(audio, ID3header.ReturnTagSize());
-                    //ID3header.SetHeaderSize(audio, 4096);
+                    ID3header.SetHeaderSize(audio, 4096);
+                    ID3header = new ID3Header(audio);
                 }
                 audio.Seek(10 + ID3header.ReturnTagSize() - 1 +4096, 0);
                 Console.WriteLine("{0} {1} {2}", audio.ReadByte(), audio.ReadByte(), audio.ReadByte());
-
+ 
                 ID3header.OutputID3HeaderInfo();
-                Console.WriteLine("Count of free bytes is {0}", ID3tag.ReturnCountFreeBytes());
+                //Console.WriteLine("Count of free bytes is {0}", ID3tag.ReturnCountFreeBytes());
             }
         }
 

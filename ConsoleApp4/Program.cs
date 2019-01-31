@@ -323,6 +323,42 @@ namespace DiskPartition
                     }
                 }
             }
+            public void SetNewTagValue(FileStream audio,string tag_name,string new_value)
+            {
+                Int32 index = 0;
+                foreach(string str in this.Tag_name)
+                {
+                    if (str == tag_name)
+                        break;
+                    index++;
+                }
+
+                Int32 tag_size = (Int32)list_name[index].ReturnHeaderSize();
+                var df_size = tag_size - new_value.Length;
+
+                if (tag_size < new_value.Length)
+                {
+                    Int32 max_index=0;
+                    foreach(Tag_Data tag in this.list_name)
+                    {
+                        if (tag.ReturnHeaderSize() > 0)
+                            max_index = tag.ReturnIndex()>max_index? tag.ReturnIndex(): max_index;
+                    }
+
+                }
+                else
+                {
+                    Int32 tag_index = list_name[index].ReturnIndex();
+                    byte[] arr_value = new byte[new_value.Length];
+                    byte[] t_arr = new byte[df_size];
+
+                    for (int i = 0; i < new_value.Length; i++)
+                        arr_value[i] = (byte)new_value[i];
+                    audio.Seek(tag_index + 10, 0);
+                    audio.Write(arr_value, 0, new_value.Length);
+                    audio.Write(t_arr, 0, df_size);//Могут быть 2 нуля перед
+                }
+            }
         }
 
         public class ID3Header
@@ -494,7 +530,7 @@ namespace DiskPartition
         static void Main(string[] args)
 
         {
-            void IncreaseFileSize(FileStream audio, Int64 tagSize)
+            void IncreaseTagSize(FileStream audio, Int64 tagSize)
             {
                 var size = audio.Length;
                 var size_data = size - 10 - tagSize;
@@ -547,9 +583,9 @@ namespace DiskPartition
 
                 ID3header.OutputID3HeaderInfo();
                 ID3tag.OutputTags();
-                if (ID3header.ReturnTagSize() < 4096)
+                if (ID3header.ReturnTagSize() < 4096) //4096 - предпочитаемый размер тегов
                 {
-                    IncreaseFileSize(audio, ID3header.ReturnTagSize());
+                    IncreaseTagSize(audio, ID3header.ReturnTagSize());
                     ID3header.SetHeaderSize(audio, 4096);
                     ID3header = new ID3Header(audio);
                     ID3header.OutputID3HeaderInfo();
@@ -560,29 +596,3 @@ namespace DiskPartition
     }
 
 }
-/*            TALB Album/Movie/Show title]    
-            "TBPM",    //TBPM BPM (beats per minute)]
-            "TCOM",    //TCOM Composer]
-            "TDAT",    //TDAT Date] 
-            "TEXT",    //TEXT Lyricist/Text writer]
-            "TIME",    //TIME Time]
-            "TIT1",    //TIT1 Content group description]
-            "TIT2",    //TIT2 Title/songname/content description]
-            "TIT3",    //TIT3 Subtitle/Description refinement]
-            "TLEN",    //TLEN Length]
-            "TOAL",    //TOAL Original album/movie/show title]
-            "TOLY",    //TOLY Original lyricist(s)/text writer(s)]
-            "TOPE",    //TOPE Original artist(s)/performer(s)]
-            "TORY",    //TORY Original release year]
-            "TPE1",    //TPE1 Lead performer(s)/Soloist(s)]
-            "TPE2",    //TPE2 Band/orchestra/accompaniment]
-            "TPE3",    //TPE3 Conductor/performer refinement]
-            "TPE4",    //TPE4 Interpreted, remixed, or otherwise modified by]
-            "TPOS",    //TPOS Part of a set]
-            "TPUB",    //TPUB Publisher]
-            "TRCK",    //TRCK Track number/Position in set]
-            "TRDA",    //TRDA Recording dates]
-            "TSIZ",    //TSIZ Size]
-            "TSSE",    //TSEE Software/Hardware and settings used for encoding]
-            "TYER",    //TYER Year]  
-*/

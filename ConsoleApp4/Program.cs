@@ -225,6 +225,42 @@ namespace DiskPartition
             {
                 return this.data_index;
             }
+            private byte[] ConverttoArr(byte count)
+            {
+                byte[] nArr = new byte[4];
+                byte mask = 255;
+                for (sbyte i = (sbyte)count; i < 4; i++)
+                {
+                    nArr[i] = (byte)(this.size >> 8 * (i - 1) & mask);
+                }
+                return nArr;
+            }
+            public byte[] PacktoArr(Int32 size)
+            {
+                this.size = (UInt32) size;
+                byte[] nArr = null;
+                if (this.size < 1 << 24)
+                {
+                    if (this.size < 1 << 16)
+                    {
+                        if (this.size < 1 << 8)
+                        {
+                            nArr = new byte[4] { 0, 0, 0, (byte)this.size };
+                        }
+                        else
+                        {
+                            nArr = ConverttoArr(2); ;
+                        }
+                    }
+                    else
+                    {
+                        nArr = ConverttoArr(3); ;
+                    }
+                }
+                else
+                    nArr = nArr = ConverttoArr(4);
+                return nArr;
+            }
         }
 
         public class ID3TAG
@@ -323,9 +359,53 @@ namespace DiskPartition
                     }
                 }
             }
+            private void IncreaseTagSize(FileStream audio, Int32 shift_begin, Int32 shift_end, Int32 df_size)
+            {
+                var src_data = new byte[df_size];
+                var dest_data = new byte[df_size];
+                var null_data = new byte[df_size];
+
+                Int64 pos = shift_begin;
+                audio.Seek(pos, 0);
+                audio.Read(src_data, 0, df_size);
+                audio.Seek(pos, 0);
+                audio.Write(null_data, 0, df_size);
+                while (audio.Position < shift_end - df_size)
+                {
+                    pos = audio.Position;
+                    audio.Read(dest_data, 0, df_size);
+                    audio.Seek(pos, 0);
+                    audio.Write(src_data, 0, df_size);
+                    dest_data.CopyTo(src_data, 0);
+                }
+                Int32 size_remain = (Int32)(shift_end - audio.Position);
+                pos = audio.Position;
+                audio.Read(dest_data, 0, size_remain);
+                audio.Seek(pos, 0);
+                audio.Write(src_data, 0, df_size);
+                audio.Write(dest_data, 0, size_remain);
+            }
             public void SetNewTagValue(FileStream audio,string tag_name,string new_value)
             {
+                void ShiftRW(Int32 id, ref byte[] arr_val)
+                {
+                    audio.Seek(list_name[id].ReturnIndex() + 10, 0);
+                    audio.Write(arr_val, 0, arr_val.Length);
+                    byte[] new_size = list_name[id].PacktoArr(arr_val.Length);
+                    audio.Seek(list_name[id].ReturnIndex() + 4, 0);
+                    audio.Write(new_size, 0, new_size.Length);
+                }
+                byte[] ToByteArr(string str)
+                {
+                    byte[] nArr = new byte[str.Length];
+                    for (Int32 i = 0; i < str.Length; i++)
+                        nArr[i] = (byte)str[i];
+                    return nArr;
+                }
+
                 Int32 index = 0;
+                byte[] arr_value= ToByteArr(new_value);
+
                 foreach(string str in this.Tag_name)
                 {
                     if (str == tag_name)
@@ -336,27 +416,33 @@ namespace DiskPartition
                 Int32 tag_size = (Int32)list_name[index].ReturnHeaderSize();
                 var df_size = tag_size - new_value.Length;
 
-                if (tag_size < new_value.Length)
+                if (tag_size < new_value.Length) //Если больше запланированного
                 {
                     Int32 max_index=0;
-                    foreach(Tag_Data tag in this.list_name)
+                    Int32 i;
+                    for(i=0; i<list_name.Count;i++)
                     {
-                        if (tag.ReturnHeaderSize() > 0)
-                            max_index = tag.ReturnIndex()>max_index? tag.ReturnIndex(): max_index;
+                        if (list_name[i].ReturnIndex() > max_index)
+                            max_index = list_name[i].ReturnIndex();
                     }
+                    Int32 end_index_max = (Int32)(max_index + 10 + this.list_name[i].ReturnHeaderSize());//В идеале сравнить с размером под заголовок
+                    if (max_index!=index)//Если тег не последний,расширить,сместить м перезаписать
+                    {
+                        Int32 shift_begin = tag_size + 10 + list_name[i].ReturnIndex();
+                        this.IncreaseTagSize(audio, shift_begin, end_index_max, df_size);
+                        ShiftRW(index, ref arr_value);
+                    }
+                    else//сместить м перезаписать
+                        ShiftRW(index, ref arr_value);
 
                 }
                 else
                 {
                     Int32 tag_index = list_name[index].ReturnIndex();
-                    byte[] arr_value = new byte[new_value.Length];
-                    byte[] t_arr = new byte[df_size];
-
-                    for (int i = 0; i < new_value.Length; i++)
-                        arr_value[i] = (byte)new_value[i];
+                    byte[] null_arr = new byte[df_size];
                     audio.Seek(tag_index + 10, 0);
                     audio.Write(arr_value, 0, new_value.Length);
-                    audio.Write(t_arr, 0, df_size);//Могут быть 2 нуля перед
+                    audio.Write(null_arr, 0, df_size);//Могут быть 2 нуля перед
                 }
             }
         }
@@ -416,7 +502,7 @@ namespace DiskPartition
 
             public void SetHeaderSize(FileStream audio, Int32 size)
             {
-                //this.tagSize = size;
+                this.tagSize = size;
                 Byte28 new_size = new Byte28(size);
                 byte[] new_size_arr=new_size.PacktoArr();
                 audio.Seek(6, 0);
@@ -530,7 +616,7 @@ namespace DiskPartition
         static void Main(string[] args)
 
         {
-            void IncreaseTagSize(FileStream audio, Int64 tagSize)
+            void IncreaseTagsSize(FileStream audio, Int64 tagSize)
             {
                 var size = audio.Length;
                 var size_data = size - 10 - tagSize;
@@ -585,7 +671,7 @@ namespace DiskPartition
                 ID3tag.OutputTags();
                 if (ID3header.ReturnTagSize() < 4096) //4096 - предпочитаемый размер тегов
                 {
-                    IncreaseTagSize(audio, ID3header.ReturnTagSize());
+                    IncreaseTagsSize(audio, ID3header.ReturnTagSize());
                     ID3header.SetHeaderSize(audio, 4096);
                     ID3header = new ID3Header(audio);
                     ID3header.OutputID3HeaderInfo();

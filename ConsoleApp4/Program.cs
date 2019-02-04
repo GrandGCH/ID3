@@ -450,12 +450,18 @@ namespace DiskPartition
         public class ID3Header
         {
             private byte[] Header = new byte[10];
-            private Int32 tagSize; 
+            private Int32 tagSize;
 
             public ID3Header(FileStream audio)
             {
                 audio.Seek(0, 0);
                 audio.Read(this.Header, 0, 10);
+                if (this.Header[0] != 73 && this.Header[1] != 68 && this.Header[2] != 51)
+                {
+                    CreateID3Header(audio);
+                    audio.Seek(0, 0);
+                    audio.Read(this.Header, 0, 10);
+                }
                 this.tagSize = (Int32)UnpackTagSize();
             }
 
@@ -500,11 +506,48 @@ namespace DiskPartition
                 Console.WriteLine("-----------------------------------------");
             }
 
+            private void CreateID3Header(FileStream audio)
+            {
+                void IncreaseTagsSize(Int64 tagSize)
+                {
+                    var size = audio.Length;
+                    var new_size = tagSize + size;
+                    Int32 df_size = (Int32)(new_size - size);
+                    var src_data = new byte[df_size];
+                    var dest_data = new byte[df_size];
+                    var null_data = new byte[df_size];
+
+                    Int64 pos = 0;
+                    audio.SetLength(audio.Length + tagSize);
+                    audio.Seek(pos, 0);
+                    audio.Read(src_data, 0, df_size);
+                    audio.Seek(pos, 0);
+                    audio.Write(null_data, 0, df_size);
+                    while (audio.Position < size )
+                    {
+                        pos = audio.Position;
+                        audio.Read(dest_data, 0, df_size);
+                        audio.Seek(pos, 0);
+                        audio.Write(src_data, 0, df_size);
+                        dest_data.CopyTo(src_data, 0);
+                    }
+                    Int32 size_remain = (Int32)(audio.Length - audio.Position);
+                    pos = audio.Position;
+                    audio.Read(dest_data, 0, size_remain);
+                    audio.Seek(pos, 0);
+                    audio.Write(src_data, 0, df_size);
+                    audio.Write(dest_data, 0, size_remain);
+                }
+                IncreaseTagsSize(4096);
+                byte[] head = new byte[10] { 73, 68, 51, 3, 0, 0, 0, 0, 16, 0 };
+                audio.Seek(0, 0);
+                audio.Write(head, 0, 10);
+            }
             public void SetHeaderSize(FileStream audio, Int32 size)
             {
                 this.tagSize = size;
                 Byte28 new_size = new Byte28(size);
-                byte[] new_size_arr=new_size.PacktoArr();
+                byte[] new_size_arr = new_size.PacktoArr();
                 audio.Seek(6, 0);
                 audio.Write(new_size_arr, 0, 4);
             }
@@ -616,7 +659,7 @@ namespace DiskPartition
         static void Main(string[] args)
 
         {
-            void IncreaseTagsSize(FileStream audio, Int64 tagSize)
+            void IncreaseTagsSize(FileStream audio, Int64 tagSize) //Закинуть в Header
             {
                 var size = audio.Length;
                 var size_data = size - 10 - tagSize;
@@ -647,7 +690,7 @@ namespace DiskPartition
                 audio.Write(dest_data, 0, size_remain);
             }
             
-            using (FileStream audio = new FileStream(@"S:\B.mp3", FileMode.Open))
+            using (FileStream audio = new FileStream(@"S:\Billy Idol - Eyes Without a Face.mp3", FileMode.Open))
             {
                 var ID3header = new ID3Header(audio);
                 var ID3tag = new ID3TAG(audio, ID3header.ReturnTagSize());

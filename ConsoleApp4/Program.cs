@@ -385,6 +385,22 @@ namespace DiskPartition
                 audio.Write(src_data, 0, df_size);
                 audio.Write(dest_data, 0, size_remain);
             }
+            private void CreateNewTag(FileStream audio, Int32 tag_begin, string tag_name, string value)
+            {
+                audio.Seek(tag_begin, 0);
+                Int32 index=0;
+                for(index=0;index<Tag_name.Length;index++)
+                    if (Tag_name[index] == tag_name)
+                        break;
+                byte[] tag_size = list_name[index].PacktoArr(value.Length);
+                for (Int32 i = 0; i < 4; i++)
+                    audio.WriteByte((byte)tag_name[i]);
+                audio.Write(tag_size, 0, 4);
+                audio.WriteByte(0); //2 флага
+                audio.WriteByte(0);
+                for (Int32 i = 0; i < value.Length; i++)
+                    audio.WriteByte((byte)value[i]);
+            }
             public void SetNewTagValue(FileStream audio,string tag_name,string new_value)
             {
                 void ShiftRW(Int32 id, ref byte[] arr_val)
@@ -543,6 +559,7 @@ namespace DiskPartition
                 audio.Seek(0, 0);
                 audio.Write(head, 0, 10);
             }
+
             public void SetHeaderSize(FileStream audio, Int32 size)
             {
                 this.tagSize = size;
@@ -688,7 +705,7 @@ namespace DiskPartition
                 audio.Seek(pos, 0);
                 audio.Write(src_data, 0, df_size);
                 audio.Write(dest_data, 0, size_remain);
-            }
+            } //Надо будет перекинуть в другое место
             
             using (FileStream audio = new FileStream(@"S:\Billy Idol - Eyes Without a Face.mp3", FileMode.Open))
             {

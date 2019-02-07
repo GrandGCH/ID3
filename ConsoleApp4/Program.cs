@@ -399,13 +399,13 @@ namespace DiskPartition
 
                     if (Tag_name[index] == tag_name)
                         break;
-                byte[] tag_size = list_name[index].PacktoArr(value.Length);
+                byte[] tag_size = list_name[index].PacktoArr(value.Length+1);
                 for (Int32 i = 0; i < 4; i++)
                     audio.WriteByte((byte)tag_name[i]);
                 audio.Write(tag_size, 0, 4);
                 audio.WriteByte(0); //2 флага
                 audio.WriteByte(0);
-                //WriteByte();
+                audio.WriteByte(0);//на проверке
                 for (Int32 i = 0; i < value.Length; i++)
                     audio.WriteByte((byte)value[i]);
             }
@@ -414,8 +414,9 @@ namespace DiskPartition
                 void ShiftRW(Int32 id, ref byte[] arr_val)
                 {
                     audio.Seek(list_name[id].ReturnIndex() + 10, 0);
+                    audio.WriteByte(0);
                     audio.Write(arr_val, 0, arr_val.Length);
-                    byte[] new_size = list_name[id].PacktoArr(arr_val.Length);
+                    byte[] new_size = list_name[id].PacktoArr(arr_val.Length+1);
                     audio.Seek(list_name[id].ReturnIndex() + 4, 0);
                     audio.Write(new_size, 0, new_size.Length);
                 }
@@ -440,15 +441,14 @@ namespace DiskPartition
                 {
                     CreateNewTag(audio, index_free_bytes, tag_name, new_value);
                     byte[] flags = new byte[2];
-                    byte[] data = ToByteArr(new_value);
                     list_name[index] = new Tag_Data(tag_name, flags, new_value.Length, this.index_free_bytes + 10, new_value);
                     this.index_free_bytes += 10 + new_value.Length;
                 }
                 else                       
                 {
                     byte[] arr_value = ToByteArr(new_value);
-                    var df_size = tag_size - new_value.Length;
-                    if (tag_size < new_value.Length) //Если больше запланированного
+                    var df_size = tag_size - new_value.Length-1;
+                    if (tag_size+1 < new_value.Length) //Если больше запланированного
                     {
                         Int32 max_index = 0;
                         Int32 i;
@@ -473,6 +473,7 @@ namespace DiskPartition
                         Int32 tag_index = list_name[index].ReturnIndex();
                         byte[] null_arr = new byte[df_size];
                         audio.Seek(tag_index + 10, 0);
+                        audio.WriteByte(0);//на проверке
                         audio.Write(arr_value, 0, new_value.Length);
                         audio.Write(null_arr, 0, df_size);//Могут быть 2 нуля перед
                     }
@@ -722,7 +723,7 @@ namespace DiskPartition
                 audio.Write(dest_data, 0, size_remain);
             } //Надо будет перекинуть в другое место
             
-            using (FileStream audio = new FileStream(@"S:\OneRepublic - All The Right Moves.mp3", FileMode.Open))
+            using (FileStream audio = new FileStream(@"S:\Callejon - Utopia.mp3", FileMode.Open))
             {
                 var ID3header = new ID3Header(audio);
                 var ID3tag = new ID3TAG(audio, ID3header.ReturnTagSize());
@@ -751,7 +752,7 @@ namespace DiskPartition
                     ID3header = new ID3Header(audio);
                     ID3header.OutputID3HeaderInfo();
                 }
-                //ID3tag.SetNewTagValue(audio, "TIT2", "Eyes Without a Face");
+                ID3tag.SetNewTagValue(audio, "TPE2", "Eyes Without a Face");
             }
         }
 

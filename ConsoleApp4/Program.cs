@@ -160,6 +160,8 @@ namespace DiskPartition
 
         }
 
+
+
         public class ID3Header
         {
             private byte[] Header = new byte[10];
@@ -267,7 +269,7 @@ namespace DiskPartition
             }
         }
 
-        public class ID3TAG
+        public class ID3TAGV3
         {
             private byte[] cur_header = new byte[10];
             private int cur_num_str = 0;
@@ -282,7 +284,7 @@ namespace DiskPartition
                 "TENC","TFLT","TKEY","TLAN","TMED","TOFN","TOWN","TRSN","TRSO","TSRC","TXXX","UFID",
                 "USER","USLT","WCOM","WCOP","WOAF","WOAR","WOAS","WORS","WPAY","WPUB","WXXX"};
 
-            public ID3TAG(FileStream audio,Int32 size)
+            public ID3TAGV3(FileStream audio,Int32 size)
             {
                 AddtoList();
                 for (int i = 0; i < this.list_name.Count; i++)
@@ -443,6 +445,213 @@ namespace DiskPartition
                     byte[] arr_value = ToByteArr(new_value);
                     var df_size = tag_size - new_value.Length-1;
                     if (tag_size+1 < new_value.Length) //Если больше запланированного
+                    {
+                        Int32 max_index = 0;
+                        Int32 i;
+                        for (i = 0; i < list_name.Count; i++)
+                        {
+                            if (list_name[i].ReturnIndex() > max_index)
+                                max_index = list_name[i].ReturnIndex();
+                        }
+                        Int32 end_index_max = (Int32)(max_index + 10 + this.list_name[i].ReturnHeaderSize());//В идеале сравнить с размером под заголовок
+                        if (max_index != index)//Если тег не последний,расширить,сместить м перезаписать
+                        {
+                            Int32 shift_begin = tag_size + 10 + list_name[i].ReturnIndex();
+                            this.IncreaseTagSize(audio, shift_begin, end_index_max, df_size);
+                            ShiftRW(index, ref arr_value);
+                        }
+                        else//сместить м перезаписать
+                            ShiftRW(index, ref arr_value);
+
+                    }
+                    else
+                    {
+                        Int32 tag_index = list_name[index].ReturnIndex();
+                        byte[] null_arr = new byte[df_size];
+                        audio.Seek(tag_index + 10, 0);
+                        audio.WriteByte(0);//на проверке
+                        audio.Write(arr_value, 0, new_value.Length);
+                        audio.Write(null_arr, 0, df_size);//Могут быть 2 нуля перед
+                    }
+                }
+            }
+        }
+
+        public class ID3TAGV4
+        {
+            private byte[] cur_header = new byte[10];
+            private int cur_num_str = 0;
+            private byte[] data;
+            public Int32 index_free_bytes = 10;
+            private List<Tag_DataV4> list_name = new List<Tag_DataV4>();
+            string[] Tag_name = {
+                "TALB","TBPM","TCOM","TDAT","TEXT","TIME","TIT1","TIT2","TIT3","TLEN","TOAL","TOLY","TOPE",
+                "TORY","TPE1","TPE2","TPE3","TPE4","TPOS","TPUB","TRCK","TRDA","TSIZ","TSSE","TYER","TCON",
+                "TCOM","COMM","AENC","APIC","COMR","ENCR","EQUA","ETCO","GEOB","GRID","IPLS","LINK","MCDI",
+                "MLLT","OWNE","PRIV","PCNT","POPM","POSS","RBUF","RVAD","RVRB","SYLT","SYTC","TCOP",
+                "TENC","TFLT","TKEY","TLAN","TMED","TOFN","TOWN","TRSN","TRSO","TSRC","TXXX","UFID",
+                "USER","USLT","WCOM","WCOP","WOAF","WOAR","WOAS","WORS","WPAY","WPUB","WXXX"};
+
+            public ID3TAGV4(FileStream audio, Int32 size)
+            {
+                AddtoList();
+                for (int i = 0; i < this.list_name.Count; i++)
+                    this.list_name[i] = new Tag_DataV4(this.Tag_name[i]);
+                this.data = new byte[size];
+                audio.Seek(10, 0);
+                audio.Read(this.data, 0, size);
+            }
+
+            private void Init(int id_str, byte[] header, Int32 data_index, ref byte[] data)
+            {
+                var flag = new byte[2] { header[8], header[9] };
+                var size = new byte[4] { header[4], header[5], header[6], header[7] };
+                this.list_name[id_str] = new Tag_DataV4(this.Tag_name[id_str], flag, size, data_index, ref data);
+            }
+            private void AddtoList()
+            {
+                Tag_DataV4 TALB = null, TBPM = null, TCOM = null, TDAT = null, TEXT = null, TIME = null, TIT1 = null, TIT2 = null, TIT3 = null, TLEN = null, TOAL = null, TOLY = null, TOPE = null,
+                TORY = null, TPE1 = null, TPE2 = null, TPE3 = null, TPE4 = null, TPOS = null, TPUB = null, TRCK = null, TRDA = null, TSIZ = null, TSSE = null, TYER = null, TCON = null, COMM = null,
+                AENC = null, APIC = null, COMR = null, ENCR = null, EQUA = null, ETCO = null, GEOB = null, GRID = null, IPLS = null, LINK = null, MCDI = null, MLLT = null, OWNE = null, PRIV = null,
+                PCNT = null, POPM = null, POSS = null, RBUF = null, RVAD = null, RVRB = null, SYLT = null, SYTC = null, TCOP = null, TENC = null, TFLT = null, TKEY = null, TLAN = null, TMED = null,
+                TOFN = null, TOWN = null, TRSN = null, TRSO = null, TSRC = null, TXXX = null, UFID = null, USER = null, USLT = null, WCOM = null, WCOP = null, WOAF = null, WOAR = null, WOAS = null,
+                WORS = null, WPAY = null, WPUB = null, WXXX = null;
+
+                this.list_name.Add(TALB); this.list_name.Add(TBPM); this.list_name.Add(TCOM); this.list_name.Add(TDAT);
+                this.list_name.Add(TEXT); this.list_name.Add(TIME); this.list_name.Add(TIT1); this.list_name.Add(TIT2);
+                this.list_name.Add(TIT3); this.list_name.Add(TLEN); this.list_name.Add(TOAL); this.list_name.Add(TOLY);
+                this.list_name.Add(TOPE); this.list_name.Add(TORY); this.list_name.Add(TPE1); this.list_name.Add(TPE2);
+                this.list_name.Add(TPE3); this.list_name.Add(TPE4); this.list_name.Add(TPOS); this.list_name.Add(TPUB);
+                this.list_name.Add(TRCK); this.list_name.Add(TRDA); this.list_name.Add(TSIZ); this.list_name.Add(TSSE);
+                this.list_name.Add(TYER); this.list_name.Add(TCON); this.list_name.Add(TCOM); this.list_name.Add(COMM);
+
+                this.list_name.Add(AENC); this.list_name.Add(APIC); this.list_name.Add(COMR); this.list_name.Add(ENCR);
+                this.list_name.Add(EQUA); this.list_name.Add(ETCO); this.list_name.Add(GEOB); this.list_name.Add(GRID);
+                this.list_name.Add(IPLS); this.list_name.Add(LINK); this.list_name.Add(MCDI); this.list_name.Add(MLLT);
+                this.list_name.Add(OWNE); this.list_name.Add(PRIV); this.list_name.Add(PCNT); this.list_name.Add(POPM);
+                this.list_name.Add(POSS); this.list_name.Add(RBUF); this.list_name.Add(RVAD); this.list_name.Add(RVRB);
+                this.list_name.Add(SYLT); this.list_name.Add(SYTC); this.list_name.Add(TCOP); this.list_name.Add(TENC);
+                this.list_name.Add(TFLT); this.list_name.Add(TKEY); this.list_name.Add(TLAN); this.list_name.Add(TMED);
+
+                this.list_name.Add(TOFN); this.list_name.Add(TOWN); this.list_name.Add(TRSN); this.list_name.Add(TRSO);
+                this.list_name.Add(TSRC); this.list_name.Add(TXXX); this.list_name.Add(UFID); this.list_name.Add(USER);
+                this.list_name.Add(USLT); this.list_name.Add(WCOM); this.list_name.Add(WCOP); this.list_name.Add(WOAF);
+                this.list_name.Add(WOAR); this.list_name.Add(WOAS); this.list_name.Add(WORS); this.list_name.Add(WPAY);
+                this.list_name.Add(WPUB); this.list_name.Add(WXXX);
+            }
+            public void Unpack(byte[] Header, Int32 data_index)
+            {
+                for (int i = 0; i < 10; i++)
+                    this.cur_header[i] = Header[i];
+                this.cur_num_str = (int)Header[10];
+                this.Init(this.cur_num_str, this.cur_header, data_index, ref this.data);
+            }
+            public Int32 ReturnLength(Int32 str_id)
+            {
+                return (Int32)this.list_name[str_id].ReturnHeaderSize();
+            }
+            public ref byte[] ReturnData()
+            {
+                return ref this.data;
+            }
+            public void OutputTags()
+            {
+                for (Int32 i = 0; i < list_name.Count; i++)
+                {
+                    if (this.list_name[i].ReturnHeaderSize() > 0)
+                    {
+                        Console.WriteLine("-----------------");
+                        Console.WriteLine("Tag name: {0}", this.list_name[i].ReturnName());
+                        Console.WriteLine("Tag contains: {0}", this.list_name[i].Decrypt());
+                        Console.WriteLine("Tag begin position: {0}", this.list_name[i].ReturnIndex());
+                        Console.WriteLine("Tag size: {0}", this.list_name[i].ReturnHeaderSize());
+                        Console.WriteLine("-----------------");
+                    }
+                }
+            }
+            private void IncreaseTagSize(FileStream audio, Int32 shift_begin, Int32 shift_end, Int32 df_size)
+            {
+                var src_data = new byte[df_size];
+                var dest_data = new byte[df_size];
+                var null_data = new byte[df_size];
+
+                Int64 pos = shift_begin;
+                audio.Seek(pos, 0);
+                audio.Read(src_data, 0, df_size);
+                audio.Seek(pos, 0);
+                audio.Write(null_data, 0, df_size);
+                while (audio.Position < shift_end - df_size)
+                {
+                    pos = audio.Position;
+                    audio.Read(dest_data, 0, df_size);
+                    audio.Seek(pos, 0);
+                    audio.Write(src_data, 0, df_size);
+                    dest_data.CopyTo(src_data, 0);
+                }
+                Int32 size_remain = (Int32)(shift_end - audio.Position);
+                pos = audio.Position;
+                audio.Read(dest_data, 0, size_remain);
+                audio.Seek(pos, 0);
+                audio.Write(src_data, 0, df_size);
+                audio.Write(dest_data, 0, size_remain);
+            }
+            private void CreateNewTag(FileStream audio, Int32 tag_begin, string tag_name, string value)
+            {
+                audio.Seek(tag_begin, 0);
+                Int32 index = 0;
+                for (index = 0; index < Tag_name.Length; index++)
+                    if (Tag_name[index] == tag_name)
+                        break;
+                byte[] tag_size = list_name[index].PacktoArr(value.Length + 1);
+                for (Int32 i = 0; i < 4; i++)
+                    audio.WriteByte((byte)tag_name[i]);
+                audio.Write(tag_size, 0, 4);
+                audio.WriteByte(0); //2 флага
+                audio.WriteByte(0);
+                audio.WriteByte(0);//на проверке
+                for (Int32 i = 0; i < value.Length; i++)
+                    audio.WriteByte((byte)value[i]);
+            }
+            public void SetNewTagValue(FileStream audio, string tag_name, string new_value)
+            {
+                void ShiftRW(Int32 id, ref byte[] arr_val)
+                {
+                    audio.Seek(list_name[id].ReturnIndex() + 10, 0);
+                    audio.WriteByte(0);
+                    audio.Write(arr_val, 0, arr_val.Length);
+                    byte[] new_size = list_name[id].PacktoArr(arr_val.Length + 1);
+                    audio.Seek(list_name[id].ReturnIndex() + 4, 0);
+                    audio.Write(new_size, 0, new_size.Length);
+                }
+                byte[] ToByteArr(string str)
+                {
+                    byte[] nArr = new byte[str.Length];
+                    for (Int32 i = 0; i < str.Length; i++)
+                        nArr[i] = (byte)str[i];
+                    return nArr;
+                }
+
+                Int32 index = 0;
+                Int32 tag_size = (Int32)list_name[index].ReturnHeaderSize();
+
+                foreach (string str in this.Tag_name)
+                {
+                    if (str == tag_name)
+                        break;
+                    index++;
+                }
+                if (list_name[index].ReturnHeaderSize() == 0)
+                {
+                    CreateNewTag(audio, index_free_bytes, tag_name, new_value);
+                    byte[] flags = new byte[2];
+                    list_name[index] = new Tag_DataV4(tag_name, flags, new_value.Length, this.index_free_bytes + 11, new_value);
+                    this.index_free_bytes += 11 + new_value.Length;
+                }
+                else
+                {
+                    byte[] arr_value = ToByteArr(new_value);
+                    var df_size = tag_size - new_value.Length - 1;
+                    if (tag_size + 1 < new_value.Length) //Если больше запланированного
                     {
                         Int32 max_index = 0;
                         Int32 i;
@@ -659,6 +868,7 @@ namespace DiskPartition
                 return tag.PacktoArr(size);
             }
         }
+
         public class Parser
         {
             Int32 size;
@@ -799,36 +1009,31 @@ namespace DiskPartition
                 var ID3header = new ID3Header(audio);
                 var ID3tag = new ID3TAG(audio, ID3header.ReturnTagSize());
                 var parser = new Parser(ref ID3tag.ReturnData(), (Int32)10);
-                if (ID3header.RerurnMajorVersion() == 3)
+                while (parser.ReturnCurPos() < ID3header.ReturnTagSize() && parser.ReturnEndTags() == false)
                 {
-                    while (parser.ReturnCurPos() < ID3header.ReturnTagSize() && parser.ReturnEndTags() == false)
-                    {
-                        try
-                        {
-                            ID3tag.Unpack(parser.Result(), parser.ReturnCurPos());
-                        }
-                        catch (NullReferenceException)
-                        {
-                            ID3tag.index_free_bytes = parser.ReturnCurPos();
-                        }
-                        if (parser.ReturnEndTags() == false)
-                            parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
-                    }
-
-                    ID3header.OutputID3HeaderInfo();
-                    ID3tag.OutputTags();
-                    if (ID3header.ReturnTagSize() < 4096) //4096 - предпочитаемый размер тегов
-                    {
-                        IncreaseTagsSize(audio, ID3header.ReturnTagSize());
-                        ID3header.SetHeaderSize(audio, 4096);
-                        ID3header = new ID3Header(audio);
-                        ID3header.OutputID3HeaderInfo();
-                    }
-                    ID3tag.SetNewTagValue(audio, "TPE1", "Billy Idol");
-                    ID3tag.SetNewTagValue(audio, "TIT2", "Eyes Without a Face");
+                   try
+                   {
+                      ID3tag.Unpack(parser.Result(), parser.ReturnCurPos());
+                   }
+                   catch (NullReferenceException)
+                   {
+                      ID3tag.index_free_bytes = parser.ReturnCurPos();
+                   }
+                   if (parser.ReturnEndTags() == false)
+                      parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
                 }
-                else
-                    Console.WriteLine("Version is not 3");
+
+                  ID3header.OutputID3HeaderInfo();
+                  ID3tag.OutputTags();
+                  if (ID3header.ReturnTagSize() < 4096) //4096 - предпочитаемый размер тегов
+                  {
+                      IncreaseTagsSize(audio, ID3header.ReturnTagSize());
+                      ID3header.SetHeaderSize(audio, 4096);
+                      ID3header = new ID3Header(audio);
+                      ID3header.OutputID3HeaderInfo();
+                  }
+                  ID3tag.SetNewTagValue(audio, "TPE1", "Billy Idol");
+                  ID3tag.SetNewTagValue(audio, "TIT2", "Eyes Without a Face");
             }
         }
 

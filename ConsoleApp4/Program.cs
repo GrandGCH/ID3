@@ -160,7 +160,116 @@ namespace DiskPartition
 
         }
 
+        public class Byte32
+        {
+            private UInt32 size;
 
+            public Byte32(byte[] row_HeaderSize)
+            {
+                this.size = ToInt32(Fill(row_HeaderSize));
+            }
+
+            public Byte32(Int32 size)
+            {
+                this.size = (UInt32)size;
+            }
+
+            private byte[] Fill(byte[] row_HeaderSize)
+            {
+                var nArr = new byte[8];
+                var prc_HeaderSize = new byte[32];
+                for (int i = 0; i < 4; i++)
+                {
+                    if (row_HeaderSize[i] != 0)
+                    {
+                        nArr = this.ToBin(row_HeaderSize[i]);
+                        for (int j = 0; j < 8; j++)
+                            prc_HeaderSize[i * 8 + j] = nArr[j];
+                    }
+                }
+                return prc_HeaderSize;
+            }
+            private byte[] ToBin(byte value)//Возвращает заполненный массив с битами
+            {
+                void Conversion(byte value_t, byte[] tArr, byte current)
+                {
+                    tArr[current] = (byte)(value_t % 2);
+                    current--;
+                    value_t /= 2;
+                    if (value_t > 0)
+                        Conversion(value_t, tArr, current);
+                }
+                byte[] nArr = new byte[8];
+                Conversion(value, nArr, 7);
+                return nArr;
+            }
+            private UInt32 ToInt32(byte[] prc_HeaderSize)
+            {
+                UInt32 pow(byte power, byte val)
+                {
+                    UInt32 answer = val;
+                    if (power == 0 && val == 0)
+                        answer = 0;
+                    else if (power == 0)
+                        answer = 1;
+                    else if (power == 1)
+                        return val;
+                    else
+                        for (byte i = 0; i < power; i++)
+                            answer *= val;
+                    return answer;
+                }
+                UInt32 value = 0;
+                for (int i = 0; i < 32; i++)
+                {
+                    value <<= 1;
+                    value += pow((byte)(31 - i), prc_HeaderSize[i]);
+                }
+                return value;
+            }
+
+            public UInt32 ReturnHeaderSize()
+            {
+                return size;
+            }
+
+            private byte[] ConverttoArr(byte count, Int32 size)
+            {
+                byte[] nArr = new byte[4];
+                byte mask = 255;
+                for (sbyte i = (sbyte)count; i < 4; i++)
+                {
+                    nArr[i] = (byte)(size >> 8 * (i - 1) & mask);
+                }
+                return nArr;
+            }
+            public byte[] PacktoArr(Int32 size)
+            {
+                byte[] nArr = null;
+                if (this.size < 1 << 24)
+                {
+                    if (this.size < 1 << 16)
+                    {
+                        if (this.size < 1 << 8)
+                        {
+                            nArr = new byte[4] { 0, 0, 0, (byte)this.size };
+                        }
+                        else
+                        {
+                            nArr = ConverttoArr(2,size); ;
+                        }
+                    }
+                    else
+                    {
+                        nArr = ConverttoArr(3,size); ;
+                    }
+                }
+                else
+                    nArr = nArr = ConverttoArr(4,size);
+                return nArr;
+            }
+
+        }
 
         public class ID3Header
         {
@@ -686,6 +795,7 @@ namespace DiskPartition
 
         public class Tag_Data
         {
+            private Byte32 tag= new Byte32(0);
             protected string name;
             protected byte[] flags = new byte[2];
             protected byte[] data;
@@ -705,7 +815,8 @@ namespace DiskPartition
             {
                 this.name = name;
                 this.flags = flags;
-                this.size = ToInt32(Fill(size));
+                tag = new Byte32(size);
+                this.size = tag.ReturnHeaderSize();
                 this.data = new byte[this.size];
                 this.data_index = data_index;
                 for (int i = 0; i < this.size; i++)
@@ -722,59 +833,6 @@ namespace DiskPartition
                     this.data[i] = (byte)value[i];
             }
 
-            private byte[] Fill(byte[] row_HeaderSize)
-            {
-                var nArr = new byte[8];
-                var prc_HeaderSize = new byte[32];
-                for (int i = 0; i < 4; i++)
-                {
-                    if (row_HeaderSize[i] != 0)
-                    {
-                        nArr = this.ToBin(row_HeaderSize[i]);
-                        for (int j = 0; j < 8; j++)
-                            prc_HeaderSize[i * 8 + j] = nArr[j];
-                    }
-                }
-                return prc_HeaderSize;
-            }
-            private byte[] ToBin(byte value)//Возвращает заполненный массив с битами
-            {
-                void Conversion(byte value_t, byte[] tArr, byte current)
-                {
-                    tArr[current] = (byte)(value_t % 2);
-                    current--;
-                    value_t /= 2;
-                    if (value_t > 0)
-                        Conversion(value_t, tArr, current);
-                }
-                byte[] nArr = new byte[8];
-                Conversion(value, nArr, 7);
-                return nArr;
-            }
-            private UInt32 ToInt32(byte[] prc_HeaderSize)
-            {
-                UInt32 pow(byte power, byte val)
-                {
-                    UInt32 answer = val;
-                    if (power == 0 && val == 0)
-                        answer = 0;
-                    else if (power == 0)
-                        answer = 1;
-                    else if (power == 1)
-                        return val;
-                    else
-                        for (byte i = 0; i < power; i++)
-                            answer *= val;
-                    return answer;
-                }
-                UInt32 value = 0;
-                for (int i = 0; i < 32; i++)
-                {
-                    value <<= 1;
-                    value += pow((byte)(31 - i), prc_HeaderSize[i]);
-                }
-                return value;
-            }
             public string Decrypt()
             {
                 string str = "";
@@ -796,47 +854,15 @@ namespace DiskPartition
             {
                 return this.data_index;
             }
-            private byte[] ConverttoArr(byte count)
-            {
-                byte[] nArr = new byte[4];
-                byte mask = 255;
-                for (sbyte i = (sbyte)count; i < 4; i++)
-                {
-                    nArr[i] = (byte)(this.size >> 8 * (i - 1) & mask);
-                }
-                return nArr;
-            }
             public byte[] PacktoArr(Int32 size)
             {
-                this.size = (UInt32)size;
-                byte[] nArr = null;
-                if (this.size < 1 << 24)
-                {
-                    if (this.size < 1 << 16)
-                    {
-                        if (this.size < 1 << 8)
-                        {
-                            nArr = new byte[4] { 0, 0, 0, (byte)this.size };
-                        }
-                        else
-                        {
-                            nArr = ConverttoArr(2); ;
-                        }
-                    }
-                    else
-                    {
-                        nArr = ConverttoArr(3); ;
-                    }
-                }
-                else
-                    nArr = nArr = ConverttoArr(4);
-                return nArr;
+                return tag.PacktoArr(size);
             }
         }
 
         public class Tag_DataV4:Tag_Data
         {
-            Byte28 tag;
+            Byte28 tag = new Byte28(0);
             public Tag_DataV4(string name)
             {
                 this.name = name + " doesn't found";

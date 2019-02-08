@@ -125,151 +125,110 @@ namespace DiskPartition
 
         }
 
-        public class Tag_Data
+        public class ID3Header
         {
-            private string name;
-            private byte[] flags = new byte[2];
-            private byte[] data;
-            private Int32 data_index;
-            private UInt32 size;
+            private byte[] Header = new byte[10];
+            private Int32 tagSize;
 
-            public Tag_Data(string name)
+            public ID3Header(FileStream audio)
             {
-                this.name =name + " doesn't found";
-                size = 0;
-            }
-            public Tag_Data(string name, byte[] flags, byte[] size, Int32 data_index, ref byte[] data)
-            {
-                this.name = name;
-                this.flags = flags;
-                this.size = ToInt32(Fill(size));
-                this.data = new byte[this.size];
-                this.data_index = data_index;
-                for (int i=0;i<this.size;i++)
-                    this.data[i] = data[i + data_index];
-            }
-            public Tag_Data(string name, byte[] flags, Int32 size, Int32 data_index, string value)
-            {
-                this.name = name;
-                this.flags = flags;
-                this.size = (UInt32)size;
-                this.data = new byte[this.size];
-                this.data_index = data_index;
-                for (int i = 0; i < this.size; i++)
-                    this.data[i] = (byte)value[i];
-            }
-
-            private byte[] Fill(byte[] row_HeaderSize)
-            {
-                var nArr = new byte[8];
-                var prc_HeaderSize = new byte[32];
-                for (int i = 0; i < 4; i++)
+                audio.Seek(0, 0);
+                audio.Read(this.Header, 0, 10);
+                if (this.Header[0] != 73 && this.Header[1] != 68 && this.Header[2] != 51)
                 {
-                    if (row_HeaderSize[i] != 0)
+                    CreateID3Header(audio);
+                    audio.Seek(0, 0);
+                    audio.Read(this.Header, 0, 10);
+                }
+                this.tagSize = (Int32)UnpackTagSize();
+            }
+
+            private UInt32 UnpackTagSize()
+            {
+                var nArr = new byte[4];
+                for (byte i = 0; i < 4; i++)
+                    nArr[i] = this.Header[i + 6];
+                var Obj = new Byte28(nArr);
+                return Obj.ReturnHeaderSize();
+            }
+
+            public byte RerurnMajorVersion()
+            {
+                return this.Header[3];
+            }
+
+            private byte RerurnMinorVersion()
+            {
+                return this.Header[4];
+            }
+
+            private byte RerurnFlag()
+            {
+                return this.Header[5];
+            }
+
+            public Int32 ReturnTagSize()
+            {
+                return this.tagSize;
+            }
+
+            public void OutputID3HeaderInfo()
+            {
+                Console.WriteLine("-------------ID3Header Info--------------");
+                Console.WriteLine("The major version is {0}", this.RerurnMajorVersion());
+                Console.WriteLine("The minor version is {0}", this.RerurnMinorVersion());
+                Console.WriteLine("The flag unsynchronisation is {0} ", (this.RerurnFlag() & 128) == 128);
+                Console.WriteLine("The flag extended header is {0} ", (this.RerurnFlag() & 64) == 64);
+                Console.WriteLine("The flag experimental indicator is {0} ", (this.RerurnFlag() & 32) == 32);
+                Console.WriteLine("The length of tags is {0}", this.tagSize);
+                Console.WriteLine("-----------------------------------------");
+            }
+
+            private void CreateID3Header(FileStream audio)
+            {
+                void IncreaseTagsSize(Int64 tagSize)
+                {
+                    var size = audio.Length;
+                    var new_size = tagSize + size;
+                    Int32 df_size = (Int32)(new_size - size);
+                    var src_data = new byte[df_size];
+                    var dest_data = new byte[df_size];
+                    var null_data = new byte[df_size];
+
+                    Int64 pos = 0;
+                    audio.SetLength(audio.Length + tagSize);
+                    audio.Seek(pos, 0);
+                    audio.Read(src_data, 0, df_size);
+                    audio.Seek(pos, 0);
+                    audio.Write(null_data, 0, df_size);
+                    while (audio.Position < size - df_size)
                     {
-                        nArr = this.ToBin(row_HeaderSize[i]);
-                        for (int j = 0; j < 8; j++)
-                            prc_HeaderSize[i * 8 + j] = nArr[j];
+                        pos = audio.Position;
+                        audio.Read(dest_data, 0, df_size);
+                        audio.Seek(pos, 0);
+                        audio.Write(src_data, 0, df_size);
+                        dest_data.CopyTo(src_data, 0);
                     }
+                    Int32 size_remain = (Int32)(size - audio.Position);
+                    pos = audio.Position;
+                    audio.Read(dest_data, 0, size_remain);
+                    audio.Seek(pos, 0);
+                    audio.Write(src_data, 0, df_size);
+                    audio.Write(dest_data, 0, size_remain);
                 }
-                return prc_HeaderSize;
+                IncreaseTagsSize(4096);
+                byte[] head = new byte[10] { 73, 68, 51, 3, 0, 0, 0, 0, 32, 0 };
+                audio.Seek(0, 0);
+                audio.Write(head, 0, 10);
             }
 
-            private byte[] ToBin(byte value)//Возвращает заполненный массив с битами
+            public void SetHeaderSize(FileStream audio, Int32 size)
             {
-                void Conversion(byte value_t, byte[] tArr, byte current)
-                {
-                    tArr[current] = (byte)(value_t % 2);
-                    current--;
-                    value_t /= 2;
-                    if (value_t > 0)
-                        Conversion(value_t, tArr, current);
-                }
-                byte[] nArr = new byte[8];
-                Conversion(value, nArr, 7);
-                return nArr;
-            }
-
-            private UInt32 ToInt32(byte[] prc_HeaderSize)
-            {
-                UInt32 pow(byte power, byte val)
-                {
-                    UInt32 answer = val;
-                    if (power == 0 && val == 0)
-                        answer = 0;
-                    else if (power == 0)
-                        answer = 1;
-                    else if (power == 1)
-                        return val;
-                    else
-                        for (byte i = 0; i < power; i++)
-                            answer *= val;
-                    return answer;
-                }
-                UInt32 value = 0;
-                for (int i = 0; i < 32; i++)
-                {
-                    value <<= 1;
-                    value += pow((byte)(31 - i), prc_HeaderSize[i]);
-                }
-                return value;
-            }
-            public string Decrypt()
-            {
-                string str = "";
-                for(int i=0;i<this.size;i++)
-                {
-                    str += (char)this.data[i];
-                }
-                return str;
-            }
-            public string ReturnName()
-            {
-                return name;
-            }
-            public UInt32 ReturnHeaderSize()
-            {
-                return size;
-            }
-            public Int32 ReturnIndex()
-            {
-                return this.data_index;
-            }
-            private byte[] ConverttoArr(byte count)
-            {
-                byte[] nArr = new byte[4];
-                byte mask = 255;
-                for (sbyte i = (sbyte)count; i < 4; i++)
-                {
-                    nArr[i] = (byte)(this.size >> 8 * (i - 1) & mask);
-                }
-                return nArr;
-            }
-            public byte[] PacktoArr(Int32 size)
-            {
-                this.size = (UInt32) size;
-                byte[] nArr = null;
-                if (this.size < 1 << 24)
-                {
-                    if (this.size < 1 << 16)
-                    {
-                        if (this.size < 1 << 8)
-                        {
-                            nArr = new byte[4] { 0, 0, 0, (byte)this.size };
-                        }
-                        else
-                        {
-                            nArr = ConverttoArr(2); ;
-                        }
-                    }
-                    else
-                    {
-                        nArr = ConverttoArr(3); ;
-                    }
-                }
-                else
-                    nArr = nArr = ConverttoArr(4);
-                return nArr;
+                this.tagSize = size;
+                Byte28 new_size = new Byte28(size);
+                byte[] new_size_arr = new_size.PacktoArr();
+                audio.Seek(6, 0);
+                audio.Write(new_size_arr, 0, 4);
             }
         }
 
@@ -441,8 +400,8 @@ namespace DiskPartition
                 {
                     CreateNewTag(audio, index_free_bytes, tag_name, new_value);
                     byte[] flags = new byte[2];
-                    list_name[index] = new Tag_Data(tag_name, flags, new_value.Length, this.index_free_bytes + 10, new_value);
-                    this.index_free_bytes += 10 + new_value.Length;
+                    list_name[index] = new Tag_Data(tag_name, flags, new_value.Length, this.index_free_bytes + 11, new_value);
+                    this.index_free_bytes += 11 + new_value.Length;
                 }
                 else                       
                 {
@@ -481,110 +440,151 @@ namespace DiskPartition
             }
         }
 
-        public class ID3Header
+        public class Tag_Data
         {
-            private byte[] Header = new byte[10];
-            private Int32 tagSize;
+            private string name;
+            private byte[] flags = new byte[2];
+            private byte[] data;
+            private Int32 data_index;
+            private UInt32 size;
 
-            public ID3Header(FileStream audio)
+            public Tag_Data(string name)
             {
-                audio.Seek(0, 0);
-                audio.Read(this.Header, 0, 10);
-                if (this.Header[0] != 73 && this.Header[1] != 68 && this.Header[2] != 51)
+                this.name = name + " doesn't found";
+                size = 0;
+            }
+            public Tag_Data(string name, byte[] flags, byte[] size, Int32 data_index, ref byte[] data)
+            {
+                this.name = name;
+                this.flags = flags;
+                this.size = ToInt32(Fill(size));
+                this.data = new byte[this.size];
+                this.data_index = data_index;
+                for (int i = 0; i < this.size; i++)
+                    this.data[i] = data[i + data_index];
+            }
+            public Tag_Data(string name, byte[] flags, Int32 size, Int32 data_index, string value)
+            {
+                this.name = name;
+                this.flags = flags;
+                this.size = (UInt32)size;
+                this.data = new byte[this.size];
+                this.data_index = data_index;
+                for (int i = 0; i < this.size; i++)
+                    this.data[i] = (byte)value[i];
+            }
+
+            private byte[] Fill(byte[] row_HeaderSize)
+            {
+                var nArr = new byte[8];
+                var prc_HeaderSize = new byte[32];
+                for (int i = 0; i < 4; i++)
                 {
-                    CreateID3Header(audio);
-                    audio.Seek(0, 0);
-                    audio.Read(this.Header, 0, 10);
-                }
-                this.tagSize = (Int32)UnpackTagSize();
-            }
-
-            private UInt32 UnpackTagSize()
-            {
-                var nArr = new byte[4];
-                for (byte i = 0; i < 4; i++)
-                    nArr[i] = this.Header[i + 6];
-                var Obj = new Byte28(nArr);
-                return Obj.ReturnHeaderSize();
-            }
-
-            private byte RerurnMajorVersion()
-            {
-                return this.Header[3];
-            }
-
-            private byte RerurnMinorVersion()
-            {
-                return this.Header[4];
-            }
-
-            private byte RerurnFlag()
-            {
-                return this.Header[5];
-            }
-
-            public Int32 ReturnTagSize()
-            {
-                return this.tagSize;
-            }
-
-            public void OutputID3HeaderInfo()
-            {
-                Console.WriteLine("-------------ID3Header Info--------------");
-                Console.WriteLine("The major version is {0}", this.RerurnMajorVersion());
-                Console.WriteLine("The minor version is {0}", this.RerurnMinorVersion());
-                Console.WriteLine("The flag unsynchronisation is {0} ", (this.RerurnFlag() & 128) == 128);
-                Console.WriteLine("The flag extended header is {0} ", (this.RerurnFlag() & 64) == 64);
-                Console.WriteLine("The flag experimental indicator is {0} ", (this.RerurnFlag() & 32) == 32);
-                Console.WriteLine("The length of tags is {0}", this.tagSize);
-                Console.WriteLine("-----------------------------------------");
-            }
-
-            private void CreateID3Header(FileStream audio)
-            {
-                void IncreaseTagsSize(Int64 tagSize)
-                {
-                    var size = audio.Length;
-                    var new_size = tagSize + size;
-                    Int32 df_size = (Int32)(new_size - size);
-                    var src_data = new byte[df_size];
-                    var dest_data = new byte[df_size];
-                    var null_data = new byte[df_size];
-
-                    Int64 pos = 0;
-                    audio.SetLength(audio.Length + tagSize);
-                    audio.Seek(pos, 0);
-                    audio.Read(src_data, 0, df_size);
-                    audio.Seek(pos, 0);
-                    audio.Write(null_data, 0, df_size);
-                    while (audio.Position < size- df_size)
+                    if (row_HeaderSize[i] != 0)
                     {
-                        pos = audio.Position;
-                        audio.Read(dest_data, 0, df_size);
-                        audio.Seek(pos, 0);
-                        audio.Write(src_data, 0, df_size);
-                        dest_data.CopyTo(src_data, 0);
+                        nArr = this.ToBin(row_HeaderSize[i]);
+                        for (int j = 0; j < 8; j++)
+                            prc_HeaderSize[i * 8 + j] = nArr[j];
                     }
-                    Int32 size_remain = (Int32)(size - audio.Position);
-                    pos = audio.Position;
-                    audio.Read(dest_data, 0, size_remain);
-                    audio.Seek(pos, 0);
-                    audio.Write(src_data, 0, df_size);
-                    audio.Write(dest_data, 0, size_remain);
                 }
-                IncreaseTagsSize(4096);
-                byte[] head = new byte[10] { 73, 68, 51, 3, 0, 0, 0, 0, 32, 0 };
-                audio.Seek(0, 0);
-                audio.Write(head, 0, 10);
+                return prc_HeaderSize;
             }
 
-            public void SetHeaderSize(FileStream audio, Int32 size)
+            private byte[] ToBin(byte value)//Возвращает заполненный массив с битами
             {
-                this.tagSize = size;
-                Byte28 new_size = new Byte28(size);
-                byte[] new_size_arr = new_size.PacktoArr();
-                audio.Seek(6, 0);
-                audio.Write(new_size_arr, 0, 4);
+                void Conversion(byte value_t, byte[] tArr, byte current)
+                {
+                    tArr[current] = (byte)(value_t % 2);
+                    current--;
+                    value_t /= 2;
+                    if (value_t > 0)
+                        Conversion(value_t, tArr, current);
+                }
+                byte[] nArr = new byte[8];
+                Conversion(value, nArr, 7);
+                return nArr;
+            }
+
+            private UInt32 ToInt32(byte[] prc_HeaderSize)
+            {
+                UInt32 pow(byte power, byte val)
+                {
+                    UInt32 answer = val;
+                    if (power == 0 && val == 0)
+                        answer = 0;
+                    else if (power == 0)
+                        answer = 1;
+                    else if (power == 1)
+                        return val;
+                    else
+                        for (byte i = 0; i < power; i++)
+                            answer *= val;
+                    return answer;
+                }
+                UInt32 value = 0;
+                for (int i = 0; i < 32; i++)
+                {
+                    value <<= 1;
+                    value += pow((byte)(31 - i), prc_HeaderSize[i]);
+                }
+                return value;
+            }
+            public string Decrypt()
+            {
+                string str = "";
+                for (int i = 0; i < this.size; i++)
+                {
+                    str += (char)this.data[i];
+                }
+                return str;
+            }
+            public string ReturnName()
+            {
+                return name;
+            }
+            public UInt32 ReturnHeaderSize()
+            {
+                return size;
+            }
+            public Int32 ReturnIndex()
+            {
+                return this.data_index;
+            }
+            private byte[] ConverttoArr(byte count)
+            {
+                byte[] nArr = new byte[4];
+                byte mask = 255;
+                for (sbyte i = (sbyte)count; i < 4; i++)
+                {
+                    nArr[i] = (byte)(this.size >> 8 * (i - 1) & mask);
+                }
+                return nArr;
+            }
+            public byte[] PacktoArr(Int32 size)
+            {
+                this.size = (UInt32)size;
+                byte[] nArr = null;
+                if (this.size < 1 << 24)
+                {
+                    if (this.size < 1 << 16)
+                    {
+                        if (this.size < 1 << 8)
+                        {
+                            nArr = new byte[4] { 0, 0, 0, (byte)this.size };
+                        }
+                        else
+                        {
+                            nArr = ConverttoArr(2); ;
+                        }
+                    }
+                    else
+                    {
+                        nArr = ConverttoArr(3); ;
+                    }
+                }
+                else
+                    nArr = nArr = ConverttoArr(4);
+                return nArr;
             }
         }
 
@@ -723,36 +723,41 @@ namespace DiskPartition
                 audio.Write(dest_data, 0, size_remain);
             } //Надо будет перекинуть в другое место
             
-            using (FileStream audio = new FileStream(@"S:\Callejon - Utopia.mp3", FileMode.Open))
+            using (FileStream audio = new FileStream(@"S:\Gorillaz - Clint Eastwood.mp3", FileMode.Open))
             {
                 var ID3header = new ID3Header(audio);
                 var ID3tag = new ID3TAG(audio, ID3header.ReturnTagSize());
                 var parser = new Parser(ref ID3tag.ReturnData(), (Int32)10);
-
-                while (parser.ReturnCurPos() < ID3header.ReturnTagSize() && parser.ReturnEndTags() == false)
+                if (ID3header.RerurnMajorVersion() == 3)
                 {
-                    try
+                    while (parser.ReturnCurPos() < ID3header.ReturnTagSize() && parser.ReturnEndTags() == false)
                     {
-                        ID3tag.Unpack(parser.Result(), parser.ReturnCurPos());
+                        try
+                        {
+                            ID3tag.Unpack(parser.Result(), parser.ReturnCurPos());
+                        }
+                        catch (NullReferenceException)
+                        {
+                            ID3tag.index_free_bytes = parser.ReturnCurPos();
+                        }
+                        if (parser.ReturnEndTags() == false)
+                            parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
                     }
-                    catch (NullReferenceException)
-                    {
-                        ID3tag.index_free_bytes=parser.ReturnCurPos();
-                    }
-                    if (parser.ReturnEndTags() == false)
-                        parser.ChangeCurPos(ID3tag.ReturnLength(parser.ReturnCurStr()));
-                }
 
-                ID3header.OutputID3HeaderInfo();
-                ID3tag.OutputTags();
-                if (ID3header.ReturnTagSize() < 4096) //4096 - предпочитаемый размер тегов
-                {
-                    IncreaseTagsSize(audio, ID3header.ReturnTagSize());
-                    ID3header.SetHeaderSize(audio, 4096);
-                    ID3header = new ID3Header(audio);
                     ID3header.OutputID3HeaderInfo();
+                    ID3tag.OutputTags();
+                    if (ID3header.ReturnTagSize() < 4096) //4096 - предпочитаемый размер тегов
+                    {
+                        IncreaseTagsSize(audio, ID3header.ReturnTagSize());
+                        ID3header.SetHeaderSize(audio, 4096);
+                        ID3header = new ID3Header(audio);
+                        ID3header.OutputID3HeaderInfo();
+                    }
+                    ID3tag.SetNewTagValue(audio, "TPE1", "Billy Idol");
+                    ID3tag.SetNewTagValue(audio, "TIT2", "Eyes Without a Face");
                 }
-                ID3tag.SetNewTagValue(audio, "TPE2", "Eyes Without a Face");
+                else
+                    Console.WriteLine("Version is not 3");
             }
         }
 

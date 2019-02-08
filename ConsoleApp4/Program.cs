@@ -96,7 +96,17 @@ namespace DiskPartition
                 }
                 return nArr;
             }
-       
+            private byte[] ConverttoArr(byte count,Int32 size)
+            {
+                byte[] nArr = new byte[4];
+                byte mask = 127;
+                for (sbyte i = (sbyte)count; i < 4; i++)
+                {
+                    nArr[i] = (byte)(size >> 7 * (i - 1) & mask);
+                }
+                return nArr;
+            }
+
             public byte[] PacktoArr()
             {
                 byte[] nArr=null ;
@@ -120,6 +130,31 @@ namespace DiskPartition
                 }
                 else
                     nArr = nArr = ConverttoArr(4);
+                return nArr;
+            }
+            public byte[] PacktoArr(Int32 size)
+            {
+                byte[] nArr = null;
+                if (size < 1 << 21)
+                {
+                    if (size < 1 << 14)
+                    {
+                        if (size < 1 << 7)
+                        {
+                            nArr = new byte[4] { 0, 0, 0, (byte)size };
+                        }
+                        else
+                        {
+                            nArr = ConverttoArr(2,size); ;
+                        }
+                    }
+                    else
+                    {
+                        nArr = ConverttoArr(3,size); ;
+                    }
+                }
+                else
+                    nArr = nArr = ConverttoArr(4,size);
                 return nArr;
             }
 
@@ -442,12 +477,16 @@ namespace DiskPartition
 
         public class Tag_Data
         {
-            private string name;
-            private byte[] flags = new byte[2];
-            private byte[] data;
-            private Int32 data_index;
-            private UInt32 size;
+            protected string name;
+            protected byte[] flags = new byte[2];
+            protected byte[] data;
+            protected Int32 data_index;
+            protected UInt32 size;
 
+            protected Tag_Data()
+            {
+
+            }
             public Tag_Data(string name)
             {
                 this.name = name + " doesn't found";
@@ -489,7 +528,6 @@ namespace DiskPartition
                 }
                 return prc_HeaderSize;
             }
-
             private byte[] ToBin(byte value)//Возвращает заполненный массив с битами
             {
                 void Conversion(byte value_t, byte[] tArr, byte current)
@@ -504,7 +542,6 @@ namespace DiskPartition
                 Conversion(value, nArr, 7);
                 return nArr;
             }
-
             private UInt32 ToInt32(byte[] prc_HeaderSize)
             {
                 UInt32 pow(byte power, byte val)
@@ -588,6 +625,40 @@ namespace DiskPartition
             }
         }
 
+        public class Tag_DataV4:Tag_Data
+        {
+            Byte28 tag;
+            public Tag_DataV4(string name)
+            {
+                this.name = name + " doesn't found";
+                size = 0;
+            }
+            public Tag_DataV4(string name, byte[] flags, byte[] size, Int32 data_index, ref byte[] data)
+            {
+                this.name = name;
+                this.flags = flags;
+                tag = new Byte28(size);
+                this.size = tag.ReturnHeaderSize();
+                this.data = new byte[this.size];
+                this.data_index = data_index;
+                for (int i = 0; i < this.size; i++)
+                    this.data[i] = data[i + data_index];
+            }
+            public Tag_DataV4(string name, byte[] flags, Int32 size, Int32 data_index, string value)
+            {
+                this.name = name;
+                this.flags = flags;
+                this.size = (UInt32)size;
+                this.data = new byte[this.size];
+                this.data_index = data_index;
+                for (int i = 0; i < this.size; i++)
+                    this.data[i] = (byte)value[i];
+            }
+            public new byte[] PacktoArr(Int32 size)
+            {
+                return tag.PacktoArr(size);
+            }
+        }
         public class Parser
         {
             Int32 size;
